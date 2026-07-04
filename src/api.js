@@ -28,9 +28,9 @@ const MOCK_PRODUCTS = [
 ];
 
 const MOCK_CUSTOMERS = [
-  { name: 'Shri Hardware', address: 'Shri Hardware, Main Bazaar, Kolhapur', gstin: '27AAAAA1111A1Z1', state: 'Maharashtra', stateCode: '27' },
-  { name: 'Neminath hardware', address: 'Neminath hardware, Station Road, Sangli', gstin: '27BBBBB2222B2Z2', state: 'Maharashtra', stateCode: '27' },
-  { name: 'Vardhaman Traders', address: 'Vardhaman Traders, Market Yard, Pune', gstin: '27CCCCC3333C3Z3', state: 'Maharashtra', stateCode: '27' }
+  { name: 'Shri Hardware', address: 'Shri Hardware, Main Bazaar, Kolhapur', gstin: '27AAAAA1111A1Z1', state: 'Maharashtra', stateCode: '27', whatsapp: '919876543210' },
+  { name: 'Neminath hardware', address: 'Neminath hardware, Station Road, Sangli', gstin: '27BBBBB2222B2Z2', state: 'Maharashtra', stateCode: '27', whatsapp: '919876543211' },
+  { name: 'Vardhaman Traders', address: 'Vardhaman Traders, Market Yard, Pune', gstin: '27CCCCC3333C3Z3', state: 'Maharashtra', stateCode: '27', whatsapp: '919876543212' }
 ];
 
 const MOCK_WHITELIST = [
@@ -345,8 +345,8 @@ export const api = {
           values: [['Product Name', 'HSN/SAC', 'Unit', 'Default Rate', 'GST Rate (%)']]
         },
         {
-          range: 'Customers!A1:F1',
-          values: [['Customer Name', 'Billing Address', 'Shipping Address', 'GSTIN', 'State', 'State Code']]
+          range: 'Customers!A1:G1',
+          values: [['Customer Name', 'Billing Address', 'Shipping Address', 'GSTIN', 'State', 'State Code', 'WhatsApp Number']]
         },
         {
           range: 'Whitelist!A1:B1',
@@ -378,8 +378,8 @@ export const api = {
     });
 
     // Populate default customers
-    const customerRows = MOCK_CUSTOMERS.map(c => [c.name, c.address, c.address, c.gstin, c.state, c.stateCode]);
-    await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${newSheetId}/values/Customers!A2:F${customerRows.length + 1}?valueInputOption=USER_ENTERED`, {
+    const customerRows = MOCK_CUSTOMERS.map(c => [c.name, c.address, c.address, c.gstin, c.state, c.stateCode, c.whatsapp || '']);
+    await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${newSheetId}/values/Customers!A2:G${customerRows.length + 1}?valueInputOption=USER_ENTERED`, {
       method: 'PUT',
       body: JSON.stringify({ values: customerRows })
     });
@@ -465,7 +465,7 @@ export const api = {
     if (currentMode === 'mock') {
       return getStorageItem('bill_mock_customers', MOCK_CUSTOMERS);
     }
-    const data = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Customers!A2:F`);
+    const data = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Customers!A2:G`);
     const rows = data.values || [];
     return rows.map(r => ({
       name: r[0],
@@ -473,7 +473,8 @@ export const api = {
       shippingAddress: r[2] || r[1] || '',
       gstin: r[3] || '',
       state: r[4] || 'Maharashtra',
-      stateCode: r[5] || '27'
+      stateCode: r[5] || '27',
+      whatsapp: r[6] || ''
     }));
   },
 
@@ -489,11 +490,11 @@ export const api = {
     
     const customers = await this.getCustomers();
     const idx = customers.findIndex(c => c.name.toLowerCase().trim() === customer.name.toLowerCase().trim());
-    const rowValues = [[customer.name, customer.address, customer.address, customer.gstin, customer.state, customer.stateCode]];
+    const rowValues = [[customer.name, customer.address, customer.address, customer.gstin, customer.state, customer.stateCode, customer.whatsapp || '']];
     
     if (idx >= 0) {
       const rowNum = idx + 2;
-      await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Customers!A${rowNum}:F${rowNum}?valueInputOption=USER_ENTERED`, {
+      await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Customers!A${rowNum}:G${rowNum}?valueInputOption=USER_ENTERED`, {
         method: 'PUT',
         body: JSON.stringify({ values: rowValues })
       });

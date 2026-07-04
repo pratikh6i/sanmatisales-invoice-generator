@@ -15,6 +15,7 @@ const EMPTY_INVOICE = {
   billingAddress: '',
   shippingAddress: '',
   customerGstin: '',
+  customerWhatsapp: '',
   placeOfSupply: 'Maharashtra (27)',
   items: [
     { sNo: 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 18 }
@@ -25,6 +26,13 @@ const EMPTY_INVOICE = {
     'Subject to local jurisdiction.'
   ]
 };
+
+// Official green WhatsApp SVG logo
+const WhatsAppIcon = ({ className = "w-4 h-4" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.863-9.736.001-2.599-1.01-5.043-2.848-6.883-1.838-1.84-4.286-2.85-6.887-2.852-5.441 0-9.867 4.371-9.87 9.737 0 1.682.445 3.326 1.292 4.787L1.875 22.1l4.772-1.246zM17.472 14.382c-.32-.16-1.89-.933-2.185-1.04-.294-.11-.51-.16-.723.16-.21.32-.8.933-.98 1.14-.18.206-.363.23-.683.07-3.04-1.36-4.31-2.313-5.76-4.802-.38-.653.38-.606.98-1.812.18-.32.09-.6-.045-.76-.135-.16-1.133-2.733-1.55-3.738-.406-1.002-.82-.857-1.126-.87-.29-.015-.62-.015-.95-.015-.33 0-.86.124-1.31.62-.45.496-1.72 1.68-1.72 4.103 0 2.424 1.76 4.76 2.01 5.093.25.33 3.47 5.3 8.41 7.424 4.116 1.769 5.01 1.48 6.8 1.32.597-.053 1.89-.773 2.155-1.52.266-.747.266-1.387.186-1.52-.08-.133-.294-.21-.615-.37z"/>
+  </svg>
+);
 
 export default function App() {
   // Theme & Mode Settings
@@ -61,7 +69,7 @@ export default function App() {
   // Whitelist/Settings States
   const [newWhitelistEmail, setNewWhitelistEmail] = useState('');
   const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 18 });
-  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', address: '', gstin: '', state: 'Maharashtra', stateCode: '27' });
+  const [newCustomerForm, setNewCustomerForm] = useState({ name: '', address: '', gstin: '', whatsapp: '', state: 'Maharashtra', stateCode: '27' });
 
   // Refs for Print
   const printRef = useRef(null);
@@ -481,6 +489,7 @@ export default function App() {
       billingAddress: cust.address,
       shippingAddress: cust.address, // Default shipping same as billing
       customerGstin: cust.gstin,
+      customerWhatsapp: cust.whatsapp || '',
       placeOfSupply: cust.state ? `${cust.state} (${cust.stateCode || ''})` : prev.placeOfSupply
     }));
     setCustomerSearchDropdown(false);
@@ -535,6 +544,7 @@ export default function App() {
           name: invoiceForm.customerName.trim(),
           address: invoiceForm.billingAddress.trim(),
           gstin: invoiceForm.customerGstin.trim(),
+          whatsapp: invoiceForm.customerWhatsapp.trim(),
           state: invoiceForm.placeOfSupply.split(' (')[0],
           stateCode: invoiceForm.placeOfSupply.includes('(') ? invoiceForm.placeOfSupply.split('(')[1].replace(')', '') : '27'
         });
@@ -569,6 +579,7 @@ export default function App() {
       billingAddress: invoice.billingAddress,
       shippingAddress: invoice.shippingAddress || invoice.billingAddress,
       customerGstin: invoice.customerGstin || '',
+      customerWhatsapp: customers.find(c => c.name.toLowerCase() === invoice.customerName.toLowerCase())?.whatsapp || '',
       placeOfSupply: invoice.placeOfSupply || 'Maharashtra (27)',
       items: invoice.items.map(item => ({
         sNo: item.sNo,
@@ -624,7 +635,7 @@ export default function App() {
       const res = await api.saveCustomer(newCustomerForm);
       if (res.success) {
         showStatus(`Customer ${newCustomerForm.name} saved!`);
-        setNewCustomerForm({ name: '', address: '', gstin: '', state: 'Maharashtra', stateCode: '27' });
+        setNewCustomerForm({ name: '', address: '', gstin: '', whatsapp: '', state: 'Maharashtra', stateCode: '27' });
         loadAllData();
       }
     } catch (err) {
@@ -661,6 +672,77 @@ export default function App() {
 
   const triggerPrint = () => {
     window.print();
+  };
+
+  const handleShareWhatsApp = (invoice, calculated) => {
+    let phone = invoice.customerWhatsapp || '';
+    
+    // Fallback: search in customer database if empty in invoice
+    if (!phone && invoice.customerName) {
+      const match = customers.find(c => c.name.toLowerCase() === invoice.customerName.toLowerCase());
+      if (match && match.whatsapp) {
+        phone = match.whatsapp;
+      }
+    }
+    
+    // If still empty, prompt the user for WhatsApp Number
+    if (!phone || !phone.trim()) {
+      const inputPhone = window.prompt("Enter Customer's WhatsApp Number (with country code, e.g., 919876543210):", "91");
+      if (!inputPhone) return; // user cancelled
+      phone = inputPhone;
+      
+      // Update form state if sharing the current invoice
+      if (invoice.invoiceNo === invoiceForm.invoiceNo) {
+        handleFormChange('customerWhatsapp', phone);
+      }
+    }
+    
+    // Strip everything except numbers
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 10) {
+      showStatus('Please enter a valid phone number with country code (e.g. 919876543210)!', 'danger');
+      return;
+    }
+    
+    // Generate beautiful formatted message text
+    const isInterstate = !invoice.placeOfSupply.includes('(27)') && !invoice.placeOfSupply.toLowerCase().includes('maharashtra');
+    
+    let msg = `*INVOICE: #${invoice.invoiceNo}*\n`;
+    msg += `*Sanmati Sales*\n`;
+    msg += `--------------------------------------\n`;
+    msg += `*Date:* ${invoice.date ? invoice.date.split('-').reverse().join('/') : ''}\n`;
+    msg += `*Customer:* ${invoice.customerName}\n`;
+    if (invoice.customerGstin) {
+      msg += `*GSTIN:* ${invoice.customerGstin}\n`;
+    }
+    msg += `--------------------------------------\n`;
+    msg += `*Items:*\n`;
+    
+    invoice.items.forEach((item, index) => {
+      msg += `${index + 1}. *${item.description}*\n`;
+      msg += `   ${item.qty} ${item.unit} @ ₹${item.rate.toFixed(2)} = ₹${(item.qty * item.rate).toFixed(2)} (${item.gstRate}% GST)\n`;
+    });
+    
+    msg += `--------------------------------------\n`;
+    msg += `*Subtotal:* ₹${calculated.subtotal.toFixed(2)}\n`;
+    if (calculated.discount > 0) {
+      msg += `*Discount:* -₹${calculated.discount.toFixed(2)}\n`;
+    }
+    
+    if (isInterstate) {
+      msg += `*IGST (Total):* ₹${calculated.igstTotal.toFixed(2)}\n`;
+    } else {
+      msg += `*CGST:* ₹${calculated.cgstTotal.toFixed(2)}\n`;
+      msg += `*SGST:* ₹${calculated.sgstTotal.toFixed(2)}\n`;
+    }
+    msg += `*Grand Total:* ₹${calculated.grandTotal.toFixed(2)}\n`;
+    msg += `--------------------------------------\n`;
+    msg += `Thank you for your business! 🙏\n`;
+    msg += `For any queries, contact Sanmati Sales.`;
+    
+    const encodedText = encodeURIComponent(msg);
+    const url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+    window.open(url, '_blank');
   };
 
   // Helper to filter products on type
@@ -1003,6 +1085,16 @@ export default function App() {
                       
                       <div className="grid grid-cols-2 gap-3">
                         <div className="form-group mb-0">
+                          <label className="form-label">WhatsApp Number</label>
+                          <input 
+                            type="text" 
+                            className="form-input py-2 font-mono"
+                            placeholder="e.g. 919876543210"
+                            value={invoiceForm.customerWhatsapp}
+                            onChange={e => handleFormChange('customerWhatsapp', e.target.value)}
+                          />
+                        </div>
+                        <div className="form-group mb-0">
                           <label className="form-label">GSTIN</label>
                           <input 
                             type="text" 
@@ -1012,21 +1104,22 @@ export default function App() {
                             onChange={e => handleFormChange('customerGstin', e.target.value.toUpperCase())}
                           />
                         </div>
-                        <div className="form-group mb-0">
-                          <label className="form-label">Place of Supply</label>
-                          <select 
-                            className="form-input py-2"
-                            value={invoiceForm.placeOfSupply}
-                            onChange={e => handleFormChange('placeOfSupply', e.target.value)}
-                          >
-                            <option value="Maharashtra (27)">Maharashtra (27)</option>
-                            <option value="Karnataka (29)">Karnataka (29)</option>
-                            <option value="Gujarat (24)">Gujarat (24)</option>
-                            <option value="Delhi (07)">Delhi (07)</option>
-                            <option value="Tamil Nadu (33)">Tamil Nadu (33)</option>
-                            <option value="Other Interstate (99)">Other Interstate (99)</option>
-                          </select>
-                        </div>
+                      </div>
+                      
+                      <div className="form-group mb-0">
+                        <label className="form-label">Place of Supply</label>
+                        <select 
+                          className="form-input py-2"
+                          value={invoiceForm.placeOfSupply}
+                          onChange={e => handleFormChange('placeOfSupply', e.target.value)}
+                        >
+                          <option value="Maharashtra (27)">Maharashtra (27)</option>
+                          <option value="Karnataka (29)">Karnataka (29)</option>
+                          <option value="Gujarat (24)">Gujarat (24)</option>
+                          <option value="Delhi (07)">Delhi (07)</option>
+                          <option value="Tamil Nadu (33)">Tamil Nadu (33)</option>
+                          <option value="Other Interstate (99)">Other Interstate (99)</option>
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -1269,11 +1362,11 @@ export default function App() {
                   </div>
 
                   {/* Action row */}
-                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-3 flex-wrap">
                     <button 
                       onClick={handleSaveInvoice}
                       disabled={isSaving}
-                      className="flex-1 btn btn-primary py-2.5 text-sm"
+                      className="flex-1 min-w-[140px] btn btn-primary py-2.5 text-sm"
                     >
                       {isSaving ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                       <span>{isEditing ? 'Update Invoice' : 'Save Invoice'}</span>
@@ -1284,6 +1377,15 @@ export default function App() {
                       title="Print Invoice"
                     >
                       <Printer className="w-5 h-5" />
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => handleShareWhatsApp(invoiceForm, calculatedInvoice)}
+                      className="btn bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800 text-white py-2.5 px-4 flex items-center gap-2 shadow-md transition-colors"
+                      title="Share Invoice on WhatsApp"
+                    >
+                      <WhatsAppIcon className="w-5 h-5" />
+                      <span>Share WhatsApp</span>
                     </button>
                   </div>
 
@@ -1311,9 +1413,16 @@ export default function App() {
                       </div>
                       <button 
                         onClick={triggerPrint}
-                        className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md hover:bg-slate-800"
+                        className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md hover:bg-slate-800 transition-colors"
                       >
                         <Printer className="w-4 h-4" /> Print PDF
+                      </button>
+                      <button 
+                        onClick={() => handleShareWhatsApp(invoiceForm, calculatedInvoice)}
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md hover:bg-emerald-700 transition-colors"
+                        title="Share Invoice on WhatsApp"
+                      >
+                        <WhatsAppIcon className="w-4 h-4" /> Share WhatsApp
                       </button>
                     </div>
                   </div>
@@ -1550,6 +1659,16 @@ export default function App() {
                                 <Printer className="w-4 h-4" />
                               </button>
                               <button 
+                                onClick={() => {
+                                  const metrics = calculateInvoiceMetrics(inv);
+                                  handleShareWhatsApp(inv, metrics);
+                                }}
+                                className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:hover:bg-emerald-900 rounded-lg transition-colors"
+                                title="Share invoice on WhatsApp"
+                              >
+                                <WhatsAppIcon className="w-4 h-4" />
+                              </button>
+                              <button 
                                 onClick={() => handleDeleteInvoice(inv.invoiceNo)}
                                 className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-950 dark:hover:bg-rose-900 rounded-lg transition-colors"
                                 title="Delete invoice"
@@ -1708,6 +1827,16 @@ export default function App() {
                       />
                     </div>
                     <div className="form-group">
+                      <label className="form-label">WhatsApp Number</label>
+                      <input 
+                        type="text" 
+                        className="form-input font-mono" 
+                        placeholder="e.g. 919876543210" 
+                        value={newCustomerForm.whatsapp}
+                        onChange={e => setNewCustomerForm({...newCustomerForm, whatsapp: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
                       <label className="form-label">GSTIN</label>
                       <input 
                         type="text" 
@@ -1753,6 +1882,7 @@ export default function App() {
                       <thead>
                         <tr>
                           <th>Customer Name</th>
+                          <th>WhatsApp</th>
                           <th>GSTIN</th>
                           <th>Place of Supply</th>
                           <th>Address</th>
@@ -1762,6 +1892,7 @@ export default function App() {
                         {customers.map(cust => (
                           <tr key={cust.name}>
                             <td className="font-semibold">{cust.name}</td>
+                            <td className="font-mono text-xs">{cust.whatsapp || '-'}</td>
                             <td className="font-mono text-xs">{cust.gstin || 'Unregistered'}</td>
                             <td><span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-semibold text-slate-600 dark:text-slate-400">{cust.state} ({cust.stateCode})</span></td>
                             <td className="text-xs max-w-xs truncate" title={cust.address}>{cust.address}</td>
