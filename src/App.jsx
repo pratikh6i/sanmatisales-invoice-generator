@@ -30,7 +30,7 @@ export default function App() {
   // Theme & Mode Settings
   const [theme, setTheme] = useState(localStorage.getItem('bill_theme') || 'light');
   const [mode, setMode] = useState(api.getMode());
-  const [googleClientId, setGoogleClientId] = useState(localStorage.getItem('bill_google_client_id') || '');
+  const [googleClientId, setGoogleClientId] = useState(localStorage.getItem('bill_google_client_id') || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com');
   const [spreadsheetId, setSpreadsheetId] = useState(api.getSpreadsheetId() || '');
   const [printSize, setPrintSize] = useState('a4');
 
@@ -162,7 +162,7 @@ export default function App() {
       }
       
       const client = google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId || '727351983448-9ivnka68o801cl8q3v5p64n46qvh4mje.apps.googleusercontent.com',
+        client_id: googleClientId || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com',
         scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file email profile openid',
         callback: async (tokenResponse) => {
           if (tokenResponse.error !== undefined) {

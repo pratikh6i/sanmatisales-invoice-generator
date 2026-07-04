@@ -2,7 +2,7 @@
 // Supports 'mock' mode (localStorage) and 'live' mode (Google Sheets API client-side)
 
 let currentMode = localStorage.getItem('bill_gen_mode') || 'mock'; // 'mock' or 'live'
-let googleClientId = localStorage.getItem('bill_google_client_id') || '727351983448-9ivnka68o801cl8q3v5p64n46qvh4mje.apps.googleusercontent.com'; // Default client ID from user's screen
+let googleClientId = localStorage.getItem('bill_google_client_id') || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com'; // Default client ID from user's screen
 let spreadsheetId = localStorage.getItem('bill_spreadsheet_id') || '';
 let googleAccessToken = null; // Stored in memory after login
 
