@@ -32,6 +32,7 @@ export default function App() {
   const [mode, setMode] = useState(api.getMode());
   const [gasUrl, setGasUrl] = useState(api.getGasUrl());
   const [googleClientId, setGoogleClientId] = useState(localStorage.getItem('bill_google_client_id') || '');
+  const [spreadsheetId, setSpreadsheetId] = useState(api.getSpreadsheetId() || '');
   const [printSize, setPrintSize] = useState('a4');
 
   // Auth State
@@ -197,6 +198,7 @@ export default function App() {
         showStatus('Creating database and initializing sheets...');
         const newSheetId = await api.createNewDatabase();
         api.setSpreadsheetId(newSheetId);
+        setSpreadsheetId(newSheetId);
         
         const session = await api.verifyUser(userInfo.email);
         setUser(session);
@@ -205,6 +207,7 @@ export default function App() {
         // Connect to the single existing database
         const sheet = sheets[0];
         api.setSpreadsheetId(sheet.id);
+        setSpreadsheetId(sheet.id);
         
         const session = await api.verifyUser(userInfo.email);
         setUser(session);
@@ -231,6 +234,7 @@ export default function App() {
     setIsVerifyingAuth(true);
     try {
       api.setSpreadsheetId(sheetId);
+      setSpreadsheetId(sheetId);
       const session = await api.verifyUser(authTempToken.email);
       setUser(session);
       showStatus(`Connected successfully to database: ${name}`);
@@ -250,6 +254,7 @@ export default function App() {
       showStatus('Provisioning new database instance...');
       const newSheetId = await api.createNewDatabase();
       api.setSpreadsheetId(newSheetId);
+      setSpreadsheetId(newSheetId);
       
       const session = await api.verifyUser(authTempToken.email);
       setUser(session);
