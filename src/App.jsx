@@ -733,38 +733,6 @@ export default function App() {
               </div>
             )}
 
-            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-left">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Live Connection Settings</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-400 block mb-1">Google OAuth Client ID</label>
-                  <input 
-                    type="text" 
-                    placeholder="xxxx-xxxx.apps.googleusercontent.com" 
-                    value={googleClientId} 
-                    onChange={e => setGoogleClientId(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-xs font-mono"
-                  />
-                </div>
-                {spreadsheetId && (
-                  <div>
-                    <label className="text-[11px] font-bold text-slate-400 block mb-1">Connected Spreadsheet ID</label>
-                    <input 
-                      type="text" 
-                      readOnly 
-                      value={spreadsheetId} 
-                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900/50 text-xs font-mono text-slate-400"
-                    />
-                  </div>
-                )}
-                <button 
-                  onClick={handleSaveConnection}
-                  className="px-3 py-1.5 bg-slate-800 text-white rounded-md text-xs font-bold hover:bg-slate-700 flex items-center gap-1 shadow-sm"
-                >
-                  <Save className="w-3.5 h-3.5" /> Save Configuration
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       ) : (
