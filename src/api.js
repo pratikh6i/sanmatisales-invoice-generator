@@ -2,9 +2,9 @@
 // Supports 'mock' mode (localStorage) and 'live' mode (Google Sheets API client-side)
 
 let currentMode = localStorage.getItem('bill_gen_mode') || 'mock'; // 'mock' or 'live'
-let googleClientId = localStorage.getItem('bill_google_client_id') || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com'; // Default client ID from user's screen
+let googleClientId = localStorage.getItem('bill_google_client_id') || import.meta.env.VITE_GOOGLE_CLIENT_ID || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com';
 let spreadsheetId = localStorage.getItem('bill_spreadsheet_id') || '';
-let googleAccessToken = null; // Stored in memory after login
+let googleAccessToken = null; // Restored from localStorage on getSession() or set after login
 
 // Default Mock Data
 const MOCK_PRODUCTS = [
@@ -132,6 +132,16 @@ async function callGoogleAPI(url, options = {}) {
   });
 
   if (!response.ok) {
+    // Handle expired token / revoked access
+    if (response.status === 401) {
+      // Clear persisted session so the UI can prompt re-login
+      localStorage.removeItem('bill_google_session');
+      localStorage.removeItem('bill_user_session');
+      localStorage.removeItem('bill_spreadsheet_id');
+      googleAccessToken = null;
+      throw new Error('Session expired. Please sign in again.');
+    }
+
     const errorText = await response.text();
     let errorJson;
     try {
@@ -173,12 +183,65 @@ export const api = {
     localStorage.setItem('bill_spreadsheet_id', id);
   },
 
-  setGoogleToken(token) {
-    googleAccessToken = token;
+  setGoogleToken(token, expiresIn = 3600) {
+    if (token) {
+      googleAccessToken = token;
+      const session = { token, expiresAt: Date.now() + expiresIn * 1000 };
+      localStorage.setItem('bill_google_session', JSON.stringify(session));
+    } else {
+      this.clearSession();
+    }
   },
 
   hasGoogleToken() {
     return !!googleAccessToken;
+  },
+
+  // Session persistence helpers ------------------------------------------------
+
+  /** Restores a saved session if the token is still valid. Returns user info or null. */
+  getSession() {
+    try {
+      const raw = localStorage.getItem('bill_google_session');
+      if (!raw) return null;
+      const session = JSON.parse(raw);
+      if (!session.token || !session.expiresAt || session.expiresAt <= Date.now()) {
+        // Expired or malformed – wipe everything
+        this.clearSession();
+        return null;
+      }
+      // Token is still valid – restore it in memory
+      googleAccessToken = session.token;
+      return this.getUserSession(); // { email, name, picture } or null
+    } catch {
+      this.clearSession();
+      return null;
+    }
+  },
+
+  /** Persist basic user profile so we can restore it on page reload. */
+  saveUserSession(userInfo) {
+    if (!userInfo) return;
+    const { email, name, picture } = userInfo;
+    localStorage.setItem('bill_user_session', JSON.stringify({ email, name, picture }));
+  },
+
+  /** Read persisted user profile. */
+  getUserSession() {
+    try {
+      const raw = localStorage.getItem('bill_user_session');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /** Full logout – remove all session-related keys. */
+  clearSession() {
+    localStorage.removeItem('bill_google_session');
+    localStorage.removeItem('bill_user_session');
+    localStorage.removeItem('bill_spreadsheet_id');
+    googleAccessToken = null;
   },
 
   // Auth & Profile fetching

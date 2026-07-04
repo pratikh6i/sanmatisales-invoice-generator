@@ -30,7 +30,7 @@ export default function App() {
   // Theme & Mode Settings
   const [theme, setTheme] = useState(localStorage.getItem('bill_theme') || 'light');
   const [mode, setMode] = useState(api.getMode());
-  const [googleClientId, setGoogleClientId] = useState(localStorage.getItem('bill_google_client_id') || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com');
+  const [googleClientId, setGoogleClientId] = useState(api.getGoogleClientId());
   const [spreadsheetId, setSpreadsheetId] = useState(api.getSpreadsheetId() || '');
   const [printSize, setPrintSize] = useState('a4');
 
@@ -38,6 +38,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authEmailInput, setAuthEmailInput] = useState('');
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(true);
 
   // App States
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -71,21 +72,49 @@ export default function App() {
     localStorage.setItem('bill_theme', theme);
   }, [theme]);
 
-  // Load Data on Startup & Auth change
+  // Restore Persisted Session on Startup (Google OAuth persistence)
   useEffect(() => {
-    if (mode === 'mock') {
-      // Create a mock user session automatically if they start in mock mode
-      const session = localStorage.getItem('bill_mock_session');
-      if (session) {
-        setUser(JSON.parse(session));
-      } else {
-        const defaultSession = { email: 'admin@example.com', role: 'Admin' };
-        setUser(defaultSession);
-        localStorage.setItem('bill_mock_session', JSON.stringify(defaultSession));
+    const restoreSession = async () => {
+      setIsRestoringSession(true);
+      try {
+        if (mode === 'mock') {
+          const session = localStorage.getItem('bill_mock_session');
+          if (session) {
+            setUser(JSON.parse(session));
+          } else {
+            const defaultSession = { email: 'admin@example.com', role: 'Admin' };
+            setUser(defaultSession);
+            localStorage.setItem('bill_mock_session', JSON.stringify(defaultSession));
+          }
+        } else {
+          // Try restoring a saved Google OAuth session
+          const savedUser = api.getSession();
+          if (savedUser && savedUser.email) {
+            // Token is still valid — restore user state
+            const savedSpreadsheet = api.getSpreadsheetId();
+            if (savedSpreadsheet) {
+              setSpreadsheetId(savedSpreadsheet);
+            }
+            // Verify the user is still whitelisted
+            try {
+              const session = await api.verifyUser(savedUser.email);
+              setUser({ ...savedUser, ...session });
+            } catch {
+              // Verification failed (token expired, sheet deleted, etc.)
+              setUser(savedUser); // Still show the restored user; API errors will trigger re-login
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Session restore failed:', err);
+      } finally {
+        setIsRestoringSession(false);
       }
-    }
+    };
+    restoreSession();
   }, [mode]);
 
+  // Load data when user changes
   useEffect(() => {
     if (user) {
       loadAllData();
@@ -122,16 +151,23 @@ export default function App() {
 
   const loadAllData = async () => {
     try {
-      const prods = await api.getProducts();
-      const custs = await api.getCustomers();
-      const invs = await api.getInvoices();
-      const wl = await api.getWhitelist();
+      const [prods, custs, invs, wl] = await Promise.all([
+        api.getProducts(),
+        api.getCustomers(),
+        api.getInvoices(),
+        api.getWhitelist()
+      ]);
       
       setProducts(prods);
       setCustomers(custs);
       setInvoices(invs);
       setWhitelist(wl);
     } catch (err) {
+      // Handle session expiry gracefully
+      if (err.message.includes('Session expired')) {
+        setUser(null);
+        api.clearSession();
+      }
       showStatus(err.message, 'danger');
     }
   };
@@ -162,7 +198,7 @@ export default function App() {
       }
       
       const client = google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId || '727351903448-q5i44ba8kkund0v1k45b2ikekk4510b0.apps.googleusercontent.com',
+        client_id: googleClientId || api.getGoogleClientId(),
         scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file email profile openid',
         callback: async (tokenResponse) => {
           if (tokenResponse.error !== undefined) {
@@ -170,6 +206,9 @@ export default function App() {
             showStatus(tokenResponse.error_description || 'OAuth authorization failed', 'danger');
             return;
           }
+          // Pass expiresIn from the token response for accurate session expiry tracking
+          const expiresIn = tokenResponse.expires_in ? parseInt(tokenResponse.expires_in, 10) : 3600;
+          api.setGoogleToken(tokenResponse.access_token, expiresIn);
           await handleAuthSuccess(tokenResponse.access_token);
         }
       });
@@ -183,10 +222,9 @@ export default function App() {
   const handleAuthSuccess = async (accessToken) => {
     setIsVerifyingAuth(true);
     try {
-      api.setGoogleToken(accessToken);
-      
-      // Fetch User Info
+      // Fetch User Info and persist it for session restoration
       const userInfo = await api.fetchUserInfo(accessToken);
+      api.saveUserSession(userInfo);
       
       // Search for database sheets in Drive
       showStatus('Scanning Google Drive for existing databases...');
@@ -200,7 +238,8 @@ export default function App() {
         setSpreadsheetId(newSheetId);
         
         const session = await api.verifyUser(userInfo.email);
-        setUser(session);
+        const fullUser = { ...userInfo, ...session };
+        setUser(fullUser);
         showStatus('Setup completed! New database created in your Google Drive.');
       } else if (sheets.length === 1) {
         // Connect to the single existing database
@@ -209,18 +248,20 @@ export default function App() {
         setSpreadsheetId(sheet.id);
         
         const session = await api.verifyUser(userInfo.email);
-        setUser(session);
-        showStatus(`Connected successfully! Connected database: ${sheet.name}`);
+        const fullUser = { ...userInfo, ...session };
+        setUser(fullUser);
+        showStatus(`Connected successfully! Database: ${sheet.name}`);
       } else {
         // Duplicate files found! Prompt the user
         setDuplicateSheets(sheets);
-        setAuthTempToken({ accessToken, email: userInfo.email });
+        setAuthTempToken({ accessToken, email: userInfo.email, userInfo });
         setShowDuplicateModal(true);
         setIsVerifyingAuth(false);
       }
     } catch (err) {
       showStatus(err.message, 'danger');
       setUser(null);
+      api.clearSession();
     } finally {
       if (!showDuplicateModal) {
         setIsVerifyingAuth(false);
@@ -269,8 +310,13 @@ export default function App() {
 
   const handleLogout = () => {
     setUser(null);
-    api.setGoogleToken(null);
+    api.clearSession();
     localStorage.removeItem('bill_mock_session');
+    setSpreadsheetId('');
+    setInvoices([]);
+    setProducts([]);
+    setCustomers([]);
+    setWhitelist([]);
     showStatus('Logged out successfully');
   };
 
@@ -699,7 +745,20 @@ export default function App() {
       </header>
 
       {/* Main Layout Container */}
-      {!user ? (
+      {isRestoringSession ? (
+        /* Session Restoration Loading Spinner */
+        <div className="flex-1 flex items-center justify-center p-6 no-print">
+          <div className="text-center animate-fade-in">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-3xl shadow-xl mx-auto mb-6 animate-pulse">
+              S
+            </div>
+            <h2 className="text-lg font-bold tracking-tight mb-2">Restoring Session...</h2>
+            <p className="text-slate-400 text-sm flex items-center justify-center gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin" /> Checking authentication
+            </p>
+          </div>
+        </div>
+      ) : !user ? (
         /* Login Screen if unauthorized */
         <div className="flex-1 flex items-center justify-center p-6 no-print">
           <div className="w-full max-w-md glass-panel p-8 animate-fade-in text-center">
