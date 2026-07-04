@@ -442,15 +442,61 @@ export default function App() {
 
   // Actions
   const handleSaveInvoice = async () => {
+    // 1. Basic required fields validation
     if (!invoiceForm.invoiceNo || !invoiceForm.customerName) {
       showStatus('Invoice Number and Customer Name are required!', 'danger');
       return;
     }
+    if (!invoiceForm.billingAddress || !invoiceForm.billingAddress.trim()) {
+      showStatus('Billing Address is required!', 'danger');
+      return;
+    }
+    if (!invoiceForm.placeOfSupply) {
+      showStatus('Place of Supply is required!', 'danger');
+      return;
+    }
+
+    // 2. GSTIN Format validation
+    if (invoiceForm.customerGstin && invoiceForm.customerGstin.trim().length !== 15) {
+      showStatus('GSTIN must be exactly 15 characters (e.g., 27AAAAA1111A1Z1)!', 'danger');
+      return;
+    }
+
+    // 3. Items validation
+    const validItems = invoiceForm.items.filter(item => item.description && item.description.trim() !== '');
+    if (validItems.length === 0) {
+      showStatus('At least one item with a valid description is required!', 'danger');
+      return;
+    }
+    for (const item of validItems) {
+      if (item.qty <= 0) {
+        showStatus(`Quantity for "${item.description}" must be greater than 0!`, 'danger');
+        return;
+      }
+      if (item.rate < 0) {
+        showStatus(`Rate for "${item.description}" cannot be negative!`, 'danger');
+        return;
+      }
+    }
 
     setIsSaving(true);
     try {
+      // 4. Auto-save New Customer to Catalog database if they don't exist
+      const existingCust = customers.find(c => c.name.trim().toLowerCase() === invoiceForm.customerName.trim().toLowerCase());
+      if (!existingCust) {
+        showStatus(`Adding new customer "${invoiceForm.customerName}" to catalog database...`);
+        await api.saveCustomer({
+          name: invoiceForm.customerName.trim(),
+          address: invoiceForm.billingAddress.trim(),
+          gstin: invoiceForm.customerGstin.trim(),
+          state: invoiceForm.placeOfSupply.split(' (')[0],
+          stateCode: invoiceForm.placeOfSupply.includes('(') ? invoiceForm.placeOfSupply.split('(')[1].replace(')', '') : '27'
+        });
+      }
+
       const payload = {
         ...invoiceForm,
+        items: validItems, // save only valid items
         ...calculatedInvoice
       };
 
@@ -737,7 +783,7 @@ export default function App() {
         </div>
       ) : (
         /* Authenticated Dashboard Workspace */
-        <div className="flex-1 flex flex-col md:flex-row app-content gap-6 no-print">
+        <div className="flex-1 flex flex-col md:flex-row app-content gap-6">
           
           {/* Sidebar Tab Navigation (Hidden on Print) */}
           <nav className="w-full md:w-64 flex-shrink-0 flex flex-row md:flex-col gap-1.5 no-print overflow-x-auto md:overflow-visible pb-2 md:pb-0">

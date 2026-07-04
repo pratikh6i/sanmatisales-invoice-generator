@@ -672,42 +672,41 @@ nav button:hover {
 
 /* PRINT MEDIA OVERRIDES - CRITICAL */
 @media print {
-  /* Hide all dashboard/edit chrome */
-  body {
-    background-color: white !important;
-    color: black !important;
-    font-size: 12pt;
+  /* Hide all dashboard/edit chrome and UI elements */
+  body * {
+    visibility: hidden;
   }
   
-  .app-header,
-  .no-print,
-  .btn,
-  .edit-controls,
-  .toast,
-  .tabs-nav,
-  .sidebar,
-  .config-section,
-  nav,
-  footer {
-    display: none !important;
+  /* Make only the bill paper container visible */
+  .bill-paper-container,
+  .bill-paper-container * {
+    visibility: visible;
   }
   
-  .app-content {
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: 100% !important;
-  }
-  
+  /* Position the print container at the top left of the page */
   .bill-paper-container {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: 100% !important;
   }
   
   .bill-paper {
     padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 12pt;
   }
   
   /* Ensure page breaks don't cut rows */
