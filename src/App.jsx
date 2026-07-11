@@ -826,11 +826,7 @@ export default function App() {
                 <LogOut className="w-5 h-5" />
               </button>
             </div>
-          ) : (
-            <span className="text-sm text-slate-400 font-semibold flex items-center gap-1.5">
-              <User className="w-4 h-4" /> Guest Mode
-            </span>
-          )}
+          ) : null}
         </div>
       </header>
 
@@ -891,63 +887,43 @@ export default function App() {
         </div>
       ) : (
         /* Authenticated Dashboard Workspace */
-        <div className="flex-1 flex flex-col md:flex-row app-content gap-6">
+        <div className="flex-1 flex flex-col app-content gap-4">
           
-          {/* Sidebar Tab Navigation (Hidden on Print) */}
-          <nav className="w-full md:w-64 flex-shrink-0 flex flex-row md:flex-col gap-1.5 no-print overflow-x-auto md:overflow-visible pb-2 md:pb-0">
+          {/* Top Horizontal Tab Navigation (Hidden on Print) */}
+          <nav className="tab-navigation no-print">
             <button 
               onClick={() => setActiveTab('dashboard')}
-              className={`flex-1 md:flex-initial flex items-center gap-2.5 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'dashboard' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' 
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
+              className={`tab-btn ${activeTab === 'dashboard' ? 'tab-btn-active' : ''}`}
             >
-              <FilePlus className="w-5 h-5" />
+              <FilePlus className="w-4 h-4" />
               <span>Generate Invoice</span>
             </button>
             <button 
               onClick={() => setActiveTab('invoices')}
-              className={`flex-1 md:flex-initial flex items-center gap-2.5 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'invoices' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' 
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
+              className={`tab-btn ${activeTab === 'invoices' ? 'tab-btn-active' : ''}`}
             >
-              <FileText className="w-5 h-5" />
+              <FileText className="w-4 h-4" />
               <span>Invoices History</span>
             </button>
             <button 
               onClick={() => setActiveTab('products')}
-              className={`flex-1 md:flex-initial flex items-center gap-2.5 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'products' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' 
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
+              className={`tab-btn ${activeTab === 'products' ? 'tab-btn-active' : ''}`}
             >
-              <Database className="w-5 h-5" />
+              <Database className="w-4 h-4" />
               <span>Products List</span>
             </button>
             <button 
               onClick={() => setActiveTab('customers')}
-              className={`flex-1 md:flex-initial flex items-center gap-2.5 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'customers' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' 
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
+              className={`tab-btn ${activeTab === 'customers' ? 'tab-btn-active' : ''}`}
             >
-              <Users className="w-5 h-5" />
+              <Users className="w-4 h-4" />
               <span>Customers Db</span>
             </button>
             <button 
               onClick={() => setActiveTab('settings')}
-              className={`flex-1 md:flex-initial flex items-center gap-2.5 px-4 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-                activeTab === 'settings' 
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg' 
-                  : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
+              className={`tab-btn ${activeTab === 'settings' ? 'tab-btn-active' : ''}`}
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4" />
               <span>Access & System</span>
             </button>
           </nav>
@@ -1846,7 +1822,7 @@ export default function App() {
                         <th>Invoice No</th>
                         <th>Date</th>
                         <th>Customer Name</th>
-                        <th>State</th>
+                        <th>Town/City</th>
                         <th className="text-right">Grand Total (₹)</th>
                         <th>Created By</th>
                         <th className="text-center">Actions</th>
@@ -2172,8 +2148,8 @@ export default function App() {
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="form-group">
-                        <label className="form-label">State</label>
+                       <div className="form-group">
+                        <label className="form-label">Town/City</label>
                         <input 
                           type="text" 
                           className="form-input" 
@@ -2183,7 +2159,7 @@ export default function App() {
                         />
                       </div>
                       <div className="form-group">
-                        <label className="form-label">State Code</label>
+                        <label className="form-label">Town/City Code</label>
                         <input 
                           type="text" 
                           className="form-input font-mono" 
