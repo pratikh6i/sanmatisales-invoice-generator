@@ -226,23 +226,10 @@ export const api = {
 
   // Company Settings
   async getCompanyGstin() {
-    const cached = localStorage.getItem('company_gstin');
-    if (cached) return cached;
-
-    const docSnap = await getDoc(doc(db, 'settings', 'company'));
-    if (docSnap.exists() && docSnap.data().gstin) {
-      localStorage.setItem('company_gstin', docSnap.data().gstin);
-      return docSnap.data().gstin;
-    }
-    return '';
+    return '27GHEPP3279P1ZE';
   },
 
   async saveCompanyGstin(gstin) {
-    await setDoc(doc(db, 'settings', 'company'), {
-      gstin: gstin.toUpperCase().trim(),
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-    localStorage.setItem('company_gstin', gstin.toUpperCase().trim());
     return { success: true };
   }
 };

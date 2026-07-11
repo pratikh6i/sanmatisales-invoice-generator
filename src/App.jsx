@@ -22,7 +22,7 @@ const EMPTY_INVOICE = {
   customerGstin: '',
   customerWhatsapp: '',
   placeOfSupply: 'Maharashtra (27)',
-  transportMode: '',
+  transportMode: 'A-SELF',
   vehicleNo: '',
   items: [
     { sNo: 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 0 }
@@ -106,11 +106,8 @@ export default function App() {
   const [printSize, setPrintSize] = useState('a4');
   const [currentTemplate, setCurrentTemplate] = useState('bill'); // 'bill' (original) or 'tax' (Tally-style Tax Invoice)
 
-  // Seller GSTIN States
-  const [companyGstin, setCompanyGstin] = useState(localStorage.getItem('company_gstin') || '');
-  const [showGstinModal, setShowGstinModal] = useState(false);
-  const [gstinInput, setGstinInput] = useState('');
-  const [isSavingGstin, setIsSavingGstin] = useState(false);
+  // Seller GSTIN Constant (Hardcoded as requested)
+  const COMPANY_GSTIN = '27GHEPP3279P1ZE';
 
   // Auth State
   const [user, setUser] = useState(null);
@@ -176,42 +173,15 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const loadCompanyGstin = async () => {
-    try {
-      const cached = localStorage.getItem('company_gstin');
-      if (cached) {
-        setCompanyGstin(cached);
-        return;
-      }
-      const gstin = await api.getCompanyGstin();
-      if (gstin) {
-        setCompanyGstin(gstin);
-        localStorage.setItem('company_gstin', gstin);
-      } else {
-        setShowGstinModal(true);
-      }
-    } catch (err) {
-      console.warn('Failed to load company GSTIN:', err);
-      const cached = localStorage.getItem('company_gstin');
-      if (cached) {
-        setCompanyGstin(cached);
-      } else {
-        setShowGstinModal(true);
-      }
-    }
-  };
-
   // Load data when user changes
   useEffect(() => {
     if (user) {
       loadAllData();
-      loadCompanyGstin();
     } else {
       setInvoices([]);
       setProducts([]);
       setCustomers([]);
       setWhitelist([]);
-      setCompanyGstin('');
     }
   }, [user]);
 
@@ -443,14 +413,38 @@ export default function App() {
 
   const selectProduct = (rowIndex, prod) => {
     const newItems = [...invoiceForm.items];
-    newItems[rowIndex] = {
-      ...newItems[rowIndex],
-      description: prod.name,
-      hsn: prod.hsn || '',
-      unit: prod.unit || 'Pcs',
-      rate: prod.rate || 0,
-      gstRate: prod.gstRate || 18
-    };
+    
+    // Check if this product already exists in another row (excluding the current rowIndex)
+    const existingIndex = newItems.findIndex((item, idx) => 
+      idx !== rowIndex && 
+      item.description.trim().toLowerCase() === prod.name.trim().toLowerCase()
+    );
+    
+    if (existingIndex > -1) {
+      newItems[existingIndex].qty += parseFloat(newItems[rowIndex].qty) || 1;
+      
+      if (newItems.length > 1) {
+        newItems.splice(rowIndex, 1);
+      } else {
+        newItems[0] = { sNo: 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 0 };
+      }
+      
+      newItems.forEach((item, i) => {
+        item.sNo = i + 1;
+      });
+      
+      showStatus(`Updated quantity for "${prod.name}"`);
+    } else {
+      newItems[rowIndex] = {
+        ...newItems[rowIndex],
+        description: prod.name,
+        hsn: prod.hsn || '',
+        unit: prod.unit || 'Pcs',
+        rate: prod.rate || 0,
+        gstRate: prod.gstRate || 0
+      };
+    }
+    
     setInvoiceForm(prev => ({ ...prev, items: newItems }));
     setActiveProductSearchRow(null);
   };
@@ -1020,31 +1014,31 @@ export default function App() {
                           >
                             {invoiceForm.customerName ? <X className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                           </button>
-                        </div>
-                        {/* Auto-complete Dropdown */}
-                        {customerSearchDropdown && (
-                          <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto glass-panel p-1 shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                            <div className="flex justify-between items-center px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 mb-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">Select Customer</span>
-                              <button onClick={() => setCustomerSearchDropdown(false)} className="text-[10px] text-indigo-500 hover:underline">Close</button>
+                          {/* Auto-complete Dropdown */}
+                          {customerSearchDropdown && (
+                            <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto glass-panel p-1 shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                              <div className="flex justify-between items-center px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 mb-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Select Customer</span>
+                                <button onClick={() => setCustomerSearchDropdown(false)} className="text-[10px] text-indigo-500 hover:underline">Close</button>
+                              </div>
+                              {customers
+                                .filter(c => c.name.toLowerCase().includes(invoiceForm.customerName.toLowerCase()))
+                                .map(c => (
+                                  <button
+                                    key={c.name}
+                                    onClick={() => selectCustomer(c)}
+                                    className="w-full text-left px-2 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                                  >
+                                    {c.name} ({c.stateCode})
+                                  </button>
+                                ))
+                              }
+                              {customers.filter(c => c.name.toLowerCase().includes(invoiceForm.customerName.toLowerCase())).length === 0 && (
+                                <div className="text-center py-3 text-xs text-slate-400 font-medium">No customers found. Enter custom details.</div>
+                              )}
                             </div>
-                            {customers
-                              .filter(c => c.name.toLowerCase().includes(invoiceForm.customerName.toLowerCase()))
-                              .map(c => (
-                                <button
-                                  key={c.name}
-                                  onClick={() => selectCustomer(c)}
-                                  className="w-full text-left px-2 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
-                                >
-                                  {c.name} ({c.stateCode})
-                                </button>
-                              ))
-                            }
-                            {customers.filter(c => c.name.toLowerCase().includes(invoiceForm.customerName.toLowerCase())).length === 0 && (
-                              <div className="text-center py-3 text-xs text-slate-400 font-medium">No customers found. Enter custom details.</div>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                       
                       <div className="form-group mb-0">
@@ -1298,36 +1292,47 @@ export default function App() {
                             type="button"
                             key={prod.name}
                             onClick={() => {
-                              const isFirstRowEmpty = invoiceForm.items.length === 1 && !invoiceForm.items[0].description;
-                              if (isFirstRowEmpty) {
-                                const newItems = [{
-                                  sNo: 1,
-                                  description: prod.name,
-                                  hsn: prod.hsn || '',
-                                  qty: 1,
-                                  unit: prod.unit || 'Pcs',
-                                  rate: prod.rate || 0,
-                                  gstRate: prod.gstRate || 18
-                                }];
+                              const existingIndex = invoiceForm.items.findIndex(item => 
+                                item.description.trim().toLowerCase() === prod.name.trim().toLowerCase()
+                              );
+
+                              if (existingIndex > -1) {
+                                const newItems = [...invoiceForm.items];
+                                newItems[existingIndex].qty += 1;
                                 setInvoiceForm(prev => ({ ...prev, items: newItems }));
+                                showStatus(`Updated quantity for "${prod.name}"`);
                               } else {
-                                setInvoiceForm(prev => ({
-                                  ...prev,
-                                  items: [
-                                    ...prev.items,
-                                    {
-                                      sNo: prev.items.length + 1,
-                                      description: prod.name,
-                                      hsn: prod.hsn || '',
-                                      qty: 1,
-                                      unit: prod.unit || 'Pcs',
-                                      rate: prod.rate || 0,
-                                      gstRate: prod.gstRate || 18
-                                    }
-                                  ]
-                                }));
+                                const isFirstRowEmpty = invoiceForm.items.length === 1 && !invoiceForm.items[0].description;
+                                if (isFirstRowEmpty) {
+                                  const newItems = [{
+                                    sNo: 1,
+                                    description: prod.name,
+                                    hsn: prod.hsn || '',
+                                    qty: 1,
+                                    unit: prod.unit || 'Pcs',
+                                    rate: prod.rate || 0,
+                                    gstRate: prod.gstRate || 0
+                                  }];
+                                  setInvoiceForm(prev => ({ ...prev, items: newItems }));
+                                } else {
+                                  setInvoiceForm(prev => ({
+                                    ...prev,
+                                    items: [
+                                      ...prev.items,
+                                      {
+                                        sNo: prev.items.length + 1,
+                                        description: prod.name,
+                                        hsn: prod.hsn || '',
+                                        qty: 1,
+                                        unit: prod.unit || 'Pcs',
+                                        rate: prod.rate || 0,
+                                        gstRate: prod.gstRate || 0
+                                      }
+                                    ]
+                                  }));
+                                }
+                                showStatus(`Added ${prod.name} to invoice`);
                               }
-                              showStatus(`Added ${prod.name} to invoice`);
                             }}
                             className="px-2 py-1 bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 flex items-center gap-1 transition-colors"
                           >
@@ -1409,21 +1414,13 @@ export default function App() {
                       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
                         <button 
                           onClick={() => setCurrentTemplate('bill')}
-                          className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase tracking-wide transition-all ${
-                            currentTemplate === 'bill'
-                              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
-                              : 'text-slate-500 hover:text-slate-800'
-                          }`}
+                          className={`toggle-btn ${currentTemplate === 'bill' ? 'toggle-btn-active' : ''}`}
                         >
                           Bill
                         </button>
                         <button 
                           onClick={() => setCurrentTemplate('tax')}
-                          className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase tracking-wide transition-all ${
-                            currentTemplate === 'tax'
-                              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
-                              : 'text-slate-500 hover:text-slate-800'
-                          }`}
+                          className={`toggle-btn ${currentTemplate === 'tax' ? 'toggle-btn-active' : ''}`}
                         >
                           Tax Invoice
                         </button>
@@ -1433,7 +1430,7 @@ export default function App() {
                         <select
                           value={printSize}
                           onChange={e => setPrintSize(e.target.value)}
-                          className="form-input py-1 px-2 text-xs font-bold text-slate-700 bg-white border border-slate-200"
+                          className="preview-size-select py-1 px-2 text-xs font-bold"
                           style={{ width: 'auto', padding: '0.25rem 0.5rem' }}
                         >
                           <option value="a4">A4 Page</option>
@@ -1443,13 +1440,13 @@ export default function App() {
                       </div>
                       <button 
                         onClick={() => triggerPrint(currentTemplate)}
-                        className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md hover:bg-slate-800 transition-colors"
+                        className="px-3 py-1.5 btn-preview-print rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-colors"
                       >
                         <Printer className="w-4 h-4" /> Print PDF
                       </button>
                       <button 
                         onClick={() => handleShareWhatsApp(invoiceForm, calculatedInvoice)}
-                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md hover:bg-emerald-700 transition-colors"
+                        className="px-3 py-1.5 btn-preview-whatsapp rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-colors"
                         title="Share Invoice on WhatsApp"
                       >
                         <WhatsAppIcon className="w-4 h-4" /> Share WhatsApp
@@ -1643,7 +1640,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-center gap-4 text-[9px] text-slate-700 font-semibold mt-0.5">
                             <span><strong>PAN:</strong> GHEPP3279P</span>
-                            <span><strong>GSTIN:</strong> {companyGstin || '________________'}</span>
+                            <span><strong>GSTIN:</strong> {COMPANY_GSTIN}</span>
                           </div>
                         </div>
 
@@ -2262,20 +2259,18 @@ export default function App() {
                       />
                     </div>
 
-                    {companyGstin && (
-                      <div className="form-group">
-                        <label className="form-label">Business GSTIN (Locked)</label>
-                        <input 
-                          type="text" 
-                          className="form-input font-mono text-xs bg-slate-50 dark:bg-slate-900/50 text-slate-500 font-bold" 
-                          readOnly 
-                          value={companyGstin}
-                        />
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          This GSTIN is locked and stored securely in your database.
-                        </p>
-                      </div>
-                    )}
+                    <div className="form-group">
+                      <label className="form-label">Business GSTIN (Hardcoded)</label>
+                      <input 
+                        type="text" 
+                        className="form-input font-mono text-xs bg-slate-50 dark:bg-slate-900/50 text-slate-500 font-bold" 
+                        readOnly 
+                        value={COMPANY_GSTIN}
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Your business GSTIN is locked in the code.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -2332,62 +2327,7 @@ export default function App() {
         </div>
       )}
 
-      {/* One-time GSTIN Entry Modal */}
-      {showGstinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 no-print">
-          <div className="w-full max-w-sm glass-panel p-6 shadow-2xl animate-fade-in bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-4">
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-500 dark:text-indigo-400 mx-auto mb-3">
-                <Database className="w-6 h-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Setup Business GSTIN</h3>
-              <p className="text-[11px] text-slate-400 font-medium mt-1">
-                Please enter the GSTIN for SANMATI SALES. This is a one-time setup saved securely in the database.
-              </p>
-            </div>
-            
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (gstinInput.trim().length !== 15) {
-                showStatus("GSTIN must be exactly 15 characters!", "danger");
-                return;
-              }
-              setIsSavingGstin(true);
-              try {
-                await api.saveCompanyGstin(gstinInput.trim().toUpperCase());
-                setCompanyGstin(gstinInput.trim().toUpperCase());
-                setShowGstinModal(false);
-                showStatus("Company GSTIN saved successfully!");
-              } catch (err) {
-                showStatus(err.message, "danger");
-              } finally {
-                setIsSavingGstin(false);
-              }
-            }} className="space-y-4">
-              <div className="form-group mb-0">
-                <label className="form-label font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">GSTIN Number</label>
-                <input 
-                  type="text"
-                  className="form-input font-mono uppercase text-center text-sm py-2 tracking-widest font-black"
-                  placeholder="27GHEPP3279P1ZE"
-                  maxLength={15}
-                  value={gstinInput}
-                  onChange={e => setGstinInput(e.target.value.toUpperCase())}
-                  required
-                />
-              </div>
-              <button 
-                type="submit" 
-                disabled={isSavingGstin}
-                className="w-full btn btn-primary py-2 flex items-center justify-center gap-1.5 text-xs font-bold"
-              >
-                {isSavingGstin ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>Save GSTIN Configuration</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+
 
       {/* Footer copyright section (Hidden on Print) */}
       <footer className="py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400 font-semibold no-print">

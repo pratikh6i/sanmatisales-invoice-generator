@@ -978,6 +978,69 @@ nav button:hover {
   z-index: 9999 !important;
 }
 
+/* Preview Header Controls styling overrides */
+.btn-preview-print {
+  background-color: #0f172a !important; /* dark slate */
+  color: #ffffff !important;
+  border: 1px solid #1e293b !important;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.btn-preview-print:hover {
+  background-color: #1e293b !important;
+}
+
+.btn-preview-whatsapp {
+  background-color: #059669 !important; /* green-600 */
+  color: #ffffff !important;
+  border: 1px solid #047857 !important;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.btn-preview-whatsapp:hover {
+  background-color: #047857 !important;
+}
+
+.toggle-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #64748b !important; /* slate-500 */
+  cursor: pointer;
+  padding: 4px 8px !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  border-radius: 4px;
+}
+.toggle-btn:hover {
+  color: #1e293b !important;
+}
+.toggle-btn-active {
+  background-color: #ffffff !important;
+  color: #4f46e5 !important; /* indigo-600 */
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .toggle-btn-active {
+  background-color: #334155 !important;
+  color: #e0e7ff !important;
+}
+
+.preview-size-select {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+}
+[data-theme="dark"] .preview-size-select {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+
 
 
 
