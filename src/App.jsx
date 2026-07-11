@@ -468,37 +468,46 @@ export default function App() {
     // 1. Basic required fields validation
     if (!invoiceForm.invoiceNo || !invoiceForm.customerName) {
       showStatus('Invoice Number and Customer Name are required!', 'danger');
-      return;
+      return false;
     }
     if (!invoiceForm.billingAddress || !invoiceForm.billingAddress.trim()) {
       showStatus('Billing Address is required!', 'danger');
-      return;
+      return false;
     }
     if (!invoiceForm.placeOfSupply) {
       showStatus('Place of Supply is required!', 'danger');
-      return;
+      return false;
+    }
+
+    // Check for duplicate invoice number if creating a new invoice
+    if (!isEditing) {
+      const duplicate = invoices.some(inv => inv.invoiceNo.trim().toLowerCase() === invoiceForm.invoiceNo.trim().toLowerCase());
+      if (duplicate) {
+        showStatus(`Invoice #${invoiceForm.invoiceNo} already exists! Please use a unique invoice number.`, 'danger');
+        return false;
+      }
     }
 
     // 2. GSTIN Format validation
     if (invoiceForm.customerGstin && invoiceForm.customerGstin.trim().length !== 15) {
       showStatus('GSTIN must be exactly 15 characters (e.g., 27AAAAA1111A1Z1)!', 'danger');
-      return;
+      return false;
     }
 
     // 3. Items validation
     const validItems = invoiceForm.items.filter(item => item.description && item.description.trim() !== '');
     if (validItems.length === 0) {
       showStatus('At least one item with a valid description is required!', 'danger');
-      return;
+      return false;
     }
     for (const item of validItems) {
       if (item.qty <= 0) {
         showStatus(`Quantity for "${item.description}" must be greater than 0!`, 'danger');
-        return;
+        return false;
       }
       if (item.rate < 0) {
         showStatus(`Rate for "${item.description}" cannot be negative!`, 'danger');
-        return;
+        return false;
       }
     }
 
@@ -529,12 +538,15 @@ export default function App() {
         showStatus(`Invoice #${payload.invoiceNo} saved successfully!`);
         // Hold the current state (do not clear the form)
         loadAllData();
+        return true;
       }
     } catch (err) {
       showStatus(err.message, 'danger');
+      return false;
     } finally {
       setIsSaving(false);
     }
+    return false;
   };
 
   const handleEditInvoice = (invoice) => {
@@ -677,6 +689,13 @@ export default function App() {
     setTimeout(() => {
       window.print();
     }, 150);
+  };
+
+  const handleSaveAndPrint = async (template = 'bill') => {
+    const saved = await handleSaveInvoice();
+    if (saved) {
+      triggerPrint(template);
+    }
   };
 
   const handleShareWhatsApp = (invoice, calculated) => {
@@ -1087,10 +1106,11 @@ export default function App() {
                         <label className="form-label">Invoice Number</label>
                         <input 
                           type="text" 
-                          className="form-input py-2 font-semibold"
+                          className={`form-input py-2 font-semibold ${isEditing ? 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 cursor-not-allowed' : ''}`}
                           placeholder="e.g. 03"
                           value={invoiceForm.invoiceNo}
                           onChange={e => handleFormChange('invoiceNo', e.target.value)}
+                          disabled={isEditing}
                         />
                       </div>
                       <div className="form-group mb-0">
@@ -1361,7 +1381,7 @@ export default function App() {
                     </button>
                     <button 
                       type="button"
-                      onClick={() => triggerPrint('bill')}
+                      onClick={() => handleSaveAndPrint('bill')}
                       className="btn btn-secondary py-2.5 px-3.5 flex items-center gap-1 text-xs font-bold"
                       title="Print Regular Bill"
                     >
@@ -1370,7 +1390,7 @@ export default function App() {
                     </button>
                     <button 
                       type="button"
-                      onClick={() => triggerPrint('tax')}
+                      onClick={() => handleSaveAndPrint('tax')}
                       className="btn bg-slate-700 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white py-2.5 px-3.5 flex items-center gap-1 text-xs font-bold transition-colors"
                       title="Print Tally Tax Invoice"
                     >
@@ -1425,7 +1445,7 @@ export default function App() {
                         </select>
                       </div>
                       <button 
-                        onClick={() => triggerPrint(currentTemplate)}
+                        onClick={() => handleSaveAndPrint(currentTemplate)}
                         className="px-3 py-1.5 btn-preview-print rounded-lg text-xs font-bold flex items-center gap-1 shadow-md transition-colors"
                       >
                         <Printer className="w-4 h-4" /> Print PDF
