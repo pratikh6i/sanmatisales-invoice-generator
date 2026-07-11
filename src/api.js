@@ -81,11 +81,23 @@ export const api = {
 
   // Whitelist/User check
   async verifyUser(email) {
-    const whitelistDoc = await getDoc(doc(db, 'whitelist', email.toLowerCase().trim()));
-    if (whitelistDoc.exists()) {
-      return { email, role: whitelistDoc.data().role || 'User' };
+    const cleanEmail = email.toLowerCase().trim();
+    
+    // Auto-authorize owners as Admins
+    if (cleanEmail === 'pratikpshetti45@gmail.com' || cleanEmail === 'sanmatisales9027@gmail.com') {
+      try {
+        await setDoc(doc(db, 'whitelist', cleanEmail), { role: 'Admin' });
+      } catch (e) {
+        console.warn('Persisting owner to database whitelist failed (continuing sign-in):', e);
+      }
+      return { email: cleanEmail, role: 'Admin' };
     }
-    throw new Error(`Access Denied: ${email} is not whitelisted in the system.`);
+
+    const whitelistDoc = await getDoc(doc(db, 'whitelist', cleanEmail));
+    if (whitelistDoc.exists()) {
+      return { email: cleanEmail, role: whitelistDoc.data().role || 'User' };
+    }
+    throw new Error(`Access Denied: ${cleanEmail} is not whitelisted in the system.`);
   },
 
   async getWhitelist() {
