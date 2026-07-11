@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Plus, Trash2, Edit, Printer, Save, Settings, User, LogIn, LogOut, 
   Sun, Moon, Database, Users, PlusCircle, CheckCircle, RefreshCw, 
@@ -137,6 +137,17 @@ export default function App() {
   const [newWhitelistEmail, setNewWhitelistEmail] = useState('');
   const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0 }); // Default GST is 0%
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', address: '', gstin: '', whatsapp: '', state: 'Maharashtra', stateCode: '27' });
+
+  const latestInvoiceNo = useMemo(() => {
+    if (!invoices || invoices.length === 0) return '00';
+    const numbers = invoices.map(inv => parseInt(inv.invoiceNo, 10)).filter(n => !isNaN(n));
+    if (numbers.length === 0) {
+      const sorted = [...invoices].sort((a, b) => (b.invoiceNo || '').localeCompare(a.invoiceNo || ''));
+      return sorted[0]?.invoiceNo || '00';
+    }
+    const maxNum = Math.max(...numbers);
+    return maxNum.toString().padStart(2, '0');
+  }, [invoices]);
 
   // Refs for Print
   const printRef = useRef(null);
@@ -1103,7 +1114,14 @@ export default function App() {
                     <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Invoice Meta</h3>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="form-group mb-0">
-                        <label className="form-label">Invoice Number</label>
+                        <label className="form-label flex items-center justify-between">
+                          <span>Invoice Number</span>
+                          {!isEditing && latestInvoiceNo !== '00' && (
+                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded">
+                              Latest: #{latestInvoiceNo}
+                            </span>
+                          )}
+                        </label>
                         <input 
                           type="text" 
                           className={`form-input py-2 font-semibold ${isEditing ? 'bg-slate-50 dark:bg-slate-900/50 text-slate-500 cursor-not-allowed' : ''}`}
@@ -1669,7 +1687,7 @@ export default function App() {
                           <div className="grid grid-rows-4 text-[9px] font-semibold text-black">
                             <div className="grid grid-cols-2 tally-border-b">
                               <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Invoice No.</div>
-                              <div className="p-2 font-mono font-bold">&nbsp;</div>
+                              <div className="p-2 font-mono font-bold">{invoiceForm.invoiceNo || '__'}</div>
                             </div>
                             <div className="grid grid-cols-2 tally-border-b">
                               <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Date</div>
