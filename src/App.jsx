@@ -107,7 +107,7 @@ export default function App() {
   const [currentTemplate, setCurrentTemplate] = useState('bill'); // 'bill' (original) or 'tax' (Tally-style Tax Invoice)
 
   // Seller GSTIN Constant (Hardcoded as requested)
-  const COMPANY_GSTIN = '27GHEPP3279P1ZE';
+  const COMPANY_GSTIN = import.meta.env.VITE_COMPANY_GSTIN || '27GHEPP3279P1ZE';
 
   // Auth State
   const [user, setUser] = useState(null);
