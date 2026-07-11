@@ -779,21 +779,26 @@ export const api = {
   },
 
   async getCompanyGstin() {
-    if (currentMode === 'mock') {
-      return localStorage.getItem('company_gstin') || '';
+    // Always check localStorage first for fast access
+    const cached = localStorage.getItem('company_gstin');
+    if (cached) return cached;
+
+    if (currentMode === 'mock' || !spreadsheetId) {
+      return '';
     }
     
     try {
       await this.ensureSettingsSheetExists();
       const res = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CompanySettings!A2:B2`);
       const rows = res.values || [];
-      if (rows.length > 0 && rows[0][0] === 'COMPANY_GSTIN') {
-        return rows[0][1] || '';
+      if (rows.length > 0 && rows[0][0] === 'COMPANY_GSTIN' && rows[0][1]) {
+        localStorage.setItem('company_gstin', rows[0][1]); // Cache it
+        return rows[0][1];
       }
       return '';
     } catch (e) {
       console.warn("Failed to read company GSTIN from sheets:", e);
-      return localStorage.getItem('company_gstin') || '';
+      return '';
     }
   },
 

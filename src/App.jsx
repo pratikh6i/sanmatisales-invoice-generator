@@ -105,7 +105,7 @@ export default function App() {
   const [currentTemplate, setCurrentTemplate] = useState('bill'); // 'bill' (original) or 'tax' (Tally-style Tax Invoice)
 
   // Seller GSTIN States
-  const [companyGstin, setCompanyGstin] = useState('');
+  const [companyGstin, setCompanyGstin] = useState(localStorage.getItem('company_gstin') || '');
   const [showGstinModal, setShowGstinModal] = useState(false);
   const [gstinInput, setGstinInput] = useState('');
   const [isSavingGstin, setIsSavingGstin] = useState(false);
@@ -196,13 +196,29 @@ export default function App() {
 
   const loadCompanyGstin = async () => {
     try {
+      // First check localStorage for quick access
+      const cached = localStorage.getItem('company_gstin');
+      if (cached) {
+        setCompanyGstin(cached);
+        return; // Already configured
+      }
+      // Then try the API (which checks Google Sheet)
       const gstin = await api.getCompanyGstin();
-      setCompanyGstin(gstin);
-      if (!gstin) {
+      if (gstin) {
+        setCompanyGstin(gstin);
+        localStorage.setItem('company_gstin', gstin); // Cache it
+      } else {
         setShowGstinModal(true);
       }
     } catch (err) {
       console.warn('Failed to load company GSTIN:', err);
+      // Even on error, if localStorage has a value, use it
+      const cached = localStorage.getItem('company_gstin');
+      if (cached) {
+        setCompanyGstin(cached);
+      } else {
+        setShowGstinModal(true);
+      }
     }
   };
 
@@ -317,17 +333,23 @@ export default function App() {
     setIsVerifyingAuth(true);
     try {
       // Fetch User Info and persist it for session restoration
+      console.log('[Auth] Fetching user info...');
       const userInfo = await api.fetchUserInfo(accessToken);
+      console.log('[Auth] User info fetched:', userInfo?.email);
       api.saveUserSession(userInfo);
       
       // Search for database sheets in Drive
       showStatus('Scanning Google Drive for existing databases...');
+      console.log('[Auth] Searching Drive for existing databases...');
       const sheets = await api.searchDatabases();
+      console.log('[Auth] Found databases:', sheets.length, sheets);
       
       if (sheets.length === 0) {
         // Run first time setup
         showStatus('Creating database and initializing sheets...');
+        console.log('[Auth] Creating new database...');
         const newSheetId = await api.createNewDatabase();
+        console.log('[Auth] New database created:', newSheetId);
         api.setSpreadsheetId(newSheetId);
         setSpreadsheetId(newSheetId);
         
@@ -338,6 +360,7 @@ export default function App() {
       } else if (sheets.length === 1) {
         // Connect to the single existing database
         const sheet = sheets[0];
+        console.log('[Auth] Connecting to existing database:', sheet.id, sheet.name);
         api.setSpreadsheetId(sheet.id);
         setSpreadsheetId(sheet.id);
         
@@ -347,12 +370,14 @@ export default function App() {
         showStatus(`Connected successfully! Database: ${sheet.name}`);
       } else {
         // Duplicate files found! Prompt the user
+        console.log('[Auth] Multiple databases found, showing selection dialog');
         setDuplicateSheets(sheets);
         setAuthTempToken({ accessToken, email: userInfo.email, userInfo });
         setShowDuplicateModal(true);
         setIsVerifyingAuth(false);
       }
     } catch (err) {
+      console.error('[Auth] handleAuthSuccess error:', err);
       showStatus(err.message, 'danger');
       setUser(null);
       api.clearSession();
@@ -1777,10 +1802,8 @@ export default function App() {
                           <div className="p-3 tally-border-r space-y-1">
                             <span className="text-[8px] uppercase text-slate-400 font-bold block">Buyer (Bill to)</span>
                             <div className="text-[11px] font-extrabold text-slate-900">{invoiceForm.customerName || '__________________'}</div>
-                            {invoiceForm.billingAddress ? (
+                            {invoiceForm.billingAddress && (
                               <div className="text-[9px] text-slate-700 leading-normal whitespace-pre-wrap">{invoiceForm.billingAddress}</div>
-                            ) : (
-                              <div className="text-[9px] text-slate-400 italic">No address provided</div>
                             )}
                             <div className="pt-1 space-y-0.5 text-[9px] font-semibold text-slate-700">
                               <div><strong>GSTIN:</strong> <span className="font-mono">{invoiceForm.customerGstin || 'N/A'}</span></div>
@@ -1792,7 +1815,7 @@ export default function App() {
                           <div className="grid grid-rows-4 text-[9px] font-semibold text-black">
                             <div className="grid grid-cols-2 tally-border-b">
                               <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Invoice No.</div>
-                              <div className="p-2 font-mono font-bold text-slate-400 italic">(Fill by Pen)</div>
+                              <div className="p-2 font-mono font-bold">&nbsp;</div>
                             </div>
                             <div className="grid grid-cols-2 tally-border-b">
                               <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Date</div>
