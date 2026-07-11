@@ -973,5 +973,11 @@ nav button:hover {
   border-color: rgba(244, 63, 94, 0.4) !important;
 }
 
+/* Toast styling override to show above header */
+.toast {
+  z-index: 9999 !important;
+}
+
+
 
 

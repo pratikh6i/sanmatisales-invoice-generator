@@ -270,6 +270,7 @@ export default function App() {
     setIsVerifyingAuth(true);
     try {
       const userInfo = await api.loginWithGoogle();
+      console.log('[Auth] Google Login Succeeded, verifying whitelist email:', userInfo.email);
       const session = await api.verifyUser(userInfo.email);
       setUser({
         ...userInfo,
@@ -277,7 +278,8 @@ export default function App() {
       });
       showStatus(`Sign-in successful! Welcome, ${userInfo.name}`);
     } catch (err) {
-      showStatus(err.message, 'danger');
+      console.error('[Auth] Google Login or verification failed:', err);
+      showStatus(`Login Error: ${err.message}`, 'danger');
       api.clearSession();
       setUser(null);
     } finally {
