@@ -406,10 +406,10 @@ textarea {
 
 /* Sidebar Custom Overrides */
 nav button {
-  border: 1px solid transparent !important;
-  background: transparent !important;
+  border: 1px solid transparent;
+  background: transparent;
   cursor: pointer;
-  color: var(--text-secondary) !important;
+  color: var(--text-secondary);
   text-align: left;
 }
 
