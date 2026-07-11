@@ -85,14 +85,6 @@ export const api = {
     if (whitelistDoc.exists()) {
       return { email, role: whitelistDoc.data().role || 'User' };
     }
-    
-    // Check if the whitelist collection is completely empty. If it is, allow the first login as Admin.
-    const querySnapshot = await getDocs(collection(db, 'whitelist'));
-    if (querySnapshot.empty) {
-      await this.addToWhitelist(email, 'Admin');
-      return { email, role: 'Admin' };
-    }
-    
     throw new Error(`Access Denied: ${email} is not whitelisted in the system.`);
   },
 
