@@ -527,9 +527,7 @@ export default function App() {
       const res = await api.saveInvoice(payload);
       if (res.success) {
         showStatus(`Invoice #${payload.invoiceNo} saved successfully!`);
-        setIsEditing(false);
-        // Clear form and reload invoices
-        setInvoiceForm({ ...EMPTY_INVOICE });
+        // Hold the current state (do not clear the form)
         loadAllData();
       }
     } catch (err) {
