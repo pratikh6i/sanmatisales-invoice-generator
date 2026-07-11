@@ -3,9 +3,11 @@ import {
   Plus, Trash2, Edit, Printer, Save, Settings, User, LogIn, LogOut, 
   Sun, Moon, Database, Users, PlusCircle, CheckCircle, RefreshCw, 
   Sparkles, FileText, ChevronRight, X, AlertCircle, FilePlus, Download,
-  ChevronDown
+  ChevronDown, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { api } from './api';
+import { auth } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // Production environment detector
 const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
@@ -23,7 +25,7 @@ const EMPTY_INVOICE = {
   transportMode: '',
   vehicleNo: '',
   items: [
-    { sNo: 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 18 }
+    { sNo: 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 0 }
   ],
   discount: 0,
   terms: [
@@ -98,9 +100,9 @@ const numberToWords = (num) => {
 export default function App() {
   // Theme & Mode Settings
   const [theme, setTheme] = useState(localStorage.getItem('bill_theme') || 'light');
-  const [mode, setMode] = useState(isProd ? 'live' : api.getMode());
-  const [googleClientId, setGoogleClientId] = useState(api.getGoogleClientId());
-  const [spreadsheetId, setSpreadsheetId] = useState(api.getSpreadsheetId() || '');
+  const [mode, setMode] = useState('live'); // Always live mode in Firestore database
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [spreadsheetId, setSpreadsheetId] = useState('firestore-db');
   const [printSize, setPrintSize] = useState('a4');
   const [currentTemplate, setCurrentTemplate] = useState('bill'); // 'bill' (original) or 'tax' (Tally-style Tax Invoice)
 
@@ -136,7 +138,7 @@ export default function App() {
 
   // Whitelist/Settings States
   const [newWhitelistEmail, setNewWhitelistEmail] = useState('');
-  const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 18 });
+  const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0 }); // Default GST is 0%
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', address: '', gstin: '', whatsapp: '', state: 'Maharashtra', stateCode: '27' });
 
   // Refs for Print
@@ -144,75 +146,52 @@ export default function App() {
 
   // Synchronize Theme & Mode
   useEffect(() => {
-    if (isProd && mode !== 'live') {
-      api.setMode('live');
-      setMode('live');
-    }
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('bill_theme', theme);
-  }, [theme, mode]);
+  }, [theme]);
 
-  // Restore Persisted Session on Startup (Google OAuth persistence)
+  // Setup Firebase Auth State Changed Listener for persistence
   useEffect(() => {
-    const restoreSession = async () => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setIsRestoringSession(true);
-      try {
-        if (mode === 'mock') {
-          const session = localStorage.getItem('bill_mock_session');
-          if (session) {
-            setUser(JSON.parse(session));
-          } else {
-            const defaultSession = { email: 'admin@example.com', role: 'Admin' };
-            setUser(defaultSession);
-            localStorage.setItem('bill_mock_session', JSON.stringify(defaultSession));
-          }
-        } else {
-          // Try restoring a saved Google OAuth session
-          const savedUser = api.getSession();
-          if (savedUser && savedUser.email) {
-            // Token is still valid — restore user state
-            const savedSpreadsheet = api.getSpreadsheetId();
-            if (savedSpreadsheet) {
-              setSpreadsheetId(savedSpreadsheet);
-            }
-            // Verify the user is still whitelisted
-            try {
-              const session = await api.verifyUser(savedUser.email);
-              setUser({ ...savedUser, ...session });
-            } catch {
-              // Verification failed (token expired, sheet deleted, etc.)
-              setUser(savedUser); // Still show the restored user; API errors will trigger re-login
-            }
-          }
+      if (firebaseUser) {
+        try {
+          const session = await api.verifyUser(firebaseUser.email);
+          setUser({
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+            picture: firebaseUser.photoURL,
+            role: session.role
+          });
+        } catch (err) {
+          console.error('[Auth] Whitelist verification failed:', err);
+          showStatus(err.message, 'danger');
+          setUser(null);
         }
-      } catch (err) {
-        console.warn('Session restore failed:', err);
-      } finally {
-        setIsRestoringSession(false);
+      } else {
+        setUser(null);
       }
-    };
-    restoreSession();
-  }, [mode]);
+      setIsRestoringSession(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const loadCompanyGstin = async () => {
     try {
-      // First check localStorage for quick access
       const cached = localStorage.getItem('company_gstin');
       if (cached) {
         setCompanyGstin(cached);
-        return; // Already configured
+        return;
       }
-      // Then try the API (which checks Google Sheet)
       const gstin = await api.getCompanyGstin();
       if (gstin) {
         setCompanyGstin(gstin);
-        localStorage.setItem('company_gstin', gstin); // Cache it
+        localStorage.setItem('company_gstin', gstin);
       } else {
         setShowGstinModal(true);
       }
     } catch (err) {
       console.warn('Failed to load company GSTIN:', err);
-      // Even on error, if localStorage has a value, use it
       const cached = localStorage.getItem('company_gstin');
       if (cached) {
         setCompanyGstin(cached);
@@ -234,12 +213,11 @@ export default function App() {
       setWhitelist([]);
       setCompanyGstin('');
     }
-  }, [user, mode]);
+  }, [user]);
 
   // Auto-generate invoice number based on history
   useEffect(() => {
     if (invoices.length > 0 && !isEditing && !invoiceForm.invoiceNo) {
-      // Find highest numeric invoice number
       const numbers = invoices.map(inv => parseInt(inv.invoiceNo, 10)).filter(n => !isNaN(n));
       const nextNo = numbers.length > 0 ? Math.max(...numbers) + 1 : invoices.length + 1;
       const formattedNo = nextNo.toString().padStart(2, '0');
@@ -248,11 +226,6 @@ export default function App() {
       setInvoiceForm(prev => ({ ...prev, invoiceNo: '01' }));
     }
   }, [invoices, isEditing, invoiceForm.invoiceNo]);
-
-  // Duplicate prompts and OAuth Flow States
-  const [duplicateSheets, setDuplicateSheets] = useState([]);
-  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
-  const [authTempToken, setAuthTempToken] = useState(null);
 
   const showStatus = (text, type = 'success') => {
     setStatusMessage({ text, type });
@@ -273,11 +246,6 @@ export default function App() {
       setInvoices(invs);
       setWhitelist(wl);
     } catch (err) {
-      // Handle session expiry gracefully
-      if (err.message.includes('Session expired')) {
-        setUser(null);
-        api.clearSession();
-      }
       showStatus(err.message, 'danger');
     }
   };
@@ -290,7 +258,6 @@ export default function App() {
     try {
       const session = await api.verifyUser(authEmailInput.trim());
       setUser(session);
-      localStorage.setItem('bill_mock_session', JSON.stringify(session));
       showStatus(`Simulated Login successful as ${session.email}`);
     } catch (err) {
       showStatus(err.message, 'danger');
@@ -299,144 +266,38 @@ export default function App() {
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setIsVerifyingAuth(true);
     try {
-      /* global google */
-      if (!window.google) {
-        throw new Error('Google Identity Services script not loaded. Please check your internet connection.');
-      }
-      
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: googleClientId || api.getGoogleClientId(),
-        scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file email profile openid',
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error !== undefined) {
-            setIsVerifyingAuth(false);
-            showStatus(tokenResponse.error_description || 'OAuth authorization failed', 'danger');
-            return;
-          }
-          // Pass expiresIn from the token response for accurate session expiry tracking
-          const expiresIn = tokenResponse.expires_in ? parseInt(tokenResponse.expires_in, 10) : 3600;
-          api.setGoogleToken(tokenResponse.access_token, expiresIn);
-          await handleAuthSuccess(tokenResponse.access_token);
-        }
+      const userInfo = await api.loginWithGoogle();
+      const session = await api.verifyUser(userInfo.email);
+      setUser({
+        ...userInfo,
+        role: session.role
       });
-      client.requestAccessToken();
+      showStatus(`Sign-in successful! Welcome, ${userInfo.name}`);
     } catch (err) {
-      setIsVerifyingAuth(false);
       showStatus(err.message, 'danger');
-    }
-  };
-
-  const handleAuthSuccess = async (accessToken) => {
-    setIsVerifyingAuth(true);
-    try {
-      // Fetch User Info and persist it for session restoration
-      console.log('[Auth] Fetching user info...');
-      const userInfo = await api.fetchUserInfo(accessToken);
-      console.log('[Auth] User info fetched:', userInfo?.email);
-      api.saveUserSession(userInfo);
-      
-      // Search for database sheets in Drive
-      showStatus('Scanning Google Drive for existing databases...');
-      console.log('[Auth] Searching Drive for existing databases...');
-      const sheets = await api.searchDatabases();
-      console.log('[Auth] Found databases:', sheets.length, sheets);
-      
-      if (sheets.length === 0) {
-        // Run first time setup
-        showStatus('Creating database and initializing sheets...');
-        console.log('[Auth] Creating new database...');
-        const newSheetId = await api.createNewDatabase();
-        console.log('[Auth] New database created:', newSheetId);
-        api.setSpreadsheetId(newSheetId);
-        setSpreadsheetId(newSheetId);
-        
-        const session = await api.verifyUser(userInfo.email);
-        const fullUser = { ...userInfo, ...session };
-        setUser(fullUser);
-        showStatus('Setup completed! New database created in your Google Drive.');
-      } else if (sheets.length === 1) {
-        // Connect to the single existing database
-        const sheet = sheets[0];
-        console.log('[Auth] Connecting to existing database:', sheet.id, sheet.name);
-        api.setSpreadsheetId(sheet.id);
-        setSpreadsheetId(sheet.id);
-        
-        const session = await api.verifyUser(userInfo.email);
-        const fullUser = { ...userInfo, ...session };
-        setUser(fullUser);
-        showStatus(`Connected successfully! Database: ${sheet.name}`);
-      } else {
-        // Duplicate files found! Prompt the user
-        console.log('[Auth] Multiple databases found, showing selection dialog');
-        setDuplicateSheets(sheets);
-        setAuthTempToken({ accessToken, email: userInfo.email, userInfo });
-        setShowDuplicateModal(true);
-        setIsVerifyingAuth(false);
-      }
-    } catch (err) {
-      console.error('[Auth] handleAuthSuccess error:', err);
-      showStatus(err.message, 'danger');
-      setUser(null);
       api.clearSession();
-    } finally {
-      if (!showDuplicateModal) {
-        setIsVerifyingAuth(false);
-      }
-    }
-  };
-
-  const handleSelectDuplicateSheet = async (sheetId, name) => {
-    setShowDuplicateModal(false);
-    setIsVerifyingAuth(true);
-    try {
-      api.setSpreadsheetId(sheetId);
-      setSpreadsheetId(sheetId);
-      const session = await api.verifyUser(authTempToken.email);
-      setUser(session);
-      showStatus(`Connected successfully to database: ${name}`);
-    } catch (err) {
-      showStatus(err.message, 'danger');
       setUser(null);
     } finally {
       setIsVerifyingAuth(false);
-      setAuthTempToken(null);
     }
   };
 
-  const handleCreateNewFromDuplicate = async () => {
-    setShowDuplicateModal(false);
-    setIsVerifyingAuth(true);
+  const handleLogout = async () => {
     try {
-      showStatus('Provisioning new database instance...');
-      const newSheetId = await api.createNewDatabase();
-      api.setSpreadsheetId(newSheetId);
-      setSpreadsheetId(newSheetId);
-      
-      const session = await api.verifyUser(authTempToken.email);
-      setUser(session);
-      showStatus('Created and connected to new database!');
+      await api.logout();
+      setUser(null);
+      setSpreadsheetId('');
+      setInvoices([]);
+      setProducts([]);
+      setCustomers([]);
+      setWhitelist([]);
+      showStatus('Logged out successfully');
     } catch (err) {
       showStatus(err.message, 'danger');
-      setUser(null);
-    } finally {
-      setIsVerifyingAuth(false);
-      setAuthTempToken(null);
     }
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    api.clearSession();
-    localStorage.removeItem('bill_mock_session');
-    setSpreadsheetId('');
-    setInvoices([]);
-    setProducts([]);
-    setCustomers([]);
-    setWhitelist([]);
-    showStatus('Logged out successfully');
   };
 
   // Connection settings update
@@ -728,13 +589,47 @@ export default function App() {
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    if (!newProductForm.name || !newProductForm.rate) return;
+    if (!newProductForm.name || newProductForm.rate === undefined) return;
     try {
       const res = await api.saveProduct(newProductForm);
       if (res.success) {
         showStatus(`Product ${newProductForm.name} saved!`);
-        setNewProductForm({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 18 });
+        setNewProductForm({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0 }); // Reset with default 0% GST
         loadAllData();
+      }
+    } catch (err) {
+      showStatus(err.message, 'danger');
+    }
+  };
+
+  const handleInlineProductEdit = async (productId, field, value) => {
+    const originalProduct = products.find(p => p.id === productId);
+    if (!originalProduct) return;
+    
+    let parsedValue = value;
+    if (field === 'rate') parsedValue = parseFloat(value) || 0;
+    if (field === 'gstRate') parsedValue = parseInt(value, 10) || 0;
+
+    const updatedProduct = {
+      ...originalProduct,
+      [field]: parsedValue
+    };
+
+    try {
+      await api.saveProduct(updatedProduct);
+      setProducts(prev => prev.map(p => p.id === productId ? updatedProduct : p));
+    } catch (err) {
+      showStatus(err.message, 'danger');
+    }
+  };
+
+  const handleProductDelete = async (productId, productName) => {
+    if (!window.confirm(`Are you sure you want to delete "${productName}" from the catalog?`)) return;
+    try {
+      const res = await api.deleteProduct(productId);
+      if (res.success) {
+        showStatus(`Product "${productName}" deleted.`);
+        setProducts(prev => prev.filter(p => p.id !== productId));
       }
     } catch (err) {
       showStatus(err.message, 'danger');
@@ -861,10 +756,11 @@ export default function App() {
     window.open(url, '_blank');
   };
 
-  // Helper to filter products on type
+  // Helper to filter products on type (exclude out-of-stock)
   const getFilteredProducts = (searchStr) => {
-    if (!searchStr) return [];
-    return products.filter(p => p.name.toLowerCase().includes(searchStr.toLowerCase()));
+    const activeProducts = products.filter(p => p.inStock !== false);
+    if (!searchStr) return activeProducts;
+    return activeProducts.filter(p => p.name.toLowerCase().includes(searchStr.toLowerCase()));
   };
 
   return (
@@ -967,82 +863,35 @@ export default function App() {
             </div>
             <h2 className="text-2xl font-bold tracking-tight mb-2">Sanmati Sales Billing</h2>
             <p className="text-slate-500 text-sm mb-6">
-              Authorized personnel only. Please sign in to access the invoice engine.
+              Authorized personnel only. Please sign in with Google to access the invoice engine.
             </p>
 
-            {mode === 'mock' ? (
-              <form onSubmit={handleSimulatedLogin} className="space-y-4 text-left">
-                <div className="form-group">
-                  <label className="form-label">Gmail Address (Mock Authentication)</label>
-                  <input 
-                    type="email" 
-                    className="form-input" 
-                    placeholder="Enter email to simulate login..."
-                    value={authEmailInput}
-                    onChange={e => setAuthEmailInput(e.target.value)}
-                    required
-                  />
-                  <p className="text-[11px] text-amber-600 font-medium mt-1">
-                    * Mock mode will auto-authorize any email for testing. Default whitelisted emails: <code>admin@example.com</code>, <code>billing@example.com</code>
-                  </p>
-                </div>
+            <div className="space-y-4">
+              <div className="flex flex-col items-center justify-center">
                 <button 
-                  type="submit" 
+                  onClick={handleGoogleLogin}
                   disabled={isVerifyingAuth}
-                  className="w-full btn btn-primary flex justify-center py-2.5"
+                  className="w-full btn btn-primary flex justify-center py-3 text-sm shadow-lg hover:shadow-indigo-500/10 relative"
                 >
-                  {isVerifyingAuth ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Simulate Google Sign-In'}
+                  {isVerifyingAuth ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#ffffff"/>
+                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#ffffff"/>
+                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#ffffff"/>
+                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#ffffff"/>
+                      </svg>
+                      <span>Sign in with Google</span>
+                    </span>
+                  )}
                 </button>
-              </form>
-            ) : (
-              <div className="space-y-4">
-                {googleClientId ? (
-                  <div className="flex flex-col items-center justify-center">
-                    <button 
-                      onClick={handleGoogleLogin}
-                      disabled={isVerifyingAuth}
-                      className="w-full btn btn-primary flex justify-center py-3 text-sm shadow-lg hover:shadow-indigo-500/10 relative"
-                    >
-                      {isVerifyingAuth ? (
-                        <RefreshCw className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#ffffff"/>
-                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#ffffff"/>
-                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#ffffff"/>
-                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#ffffff"/>
-                          </svg>
-                          <span>Sign in with Google</span>
-                        </span>
-                      )}
-                    </button>
-                    <p className="text-[11px] text-slate-400 font-medium mt-3">
-                      Authentication uses Google Sheets REST API directly inside your browser.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-rose-50 dark:bg-rose-950 rounded-lg text-rose-600 dark:text-rose-300 text-sm font-medium flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                      <span>Google Client ID is not configured!</span>
-                    </div>
-                    {!isProd ? (
-                      <button 
-                        onClick={() => setMode('mock')}
-                        className="mt-2 text-xs font-bold underline text-left hover:text-rose-800"
-                      >
-                        Switch to Mock Mode to test without config
-                      </button>
-                    ) : (
-                      <p className="text-xs text-rose-400 mt-1">
-                        Please configure Google Client ID in settings to enable secure login.
-                      </p>
-                    )}
-                  </div>
-                )}
+                <p className="text-[11px] text-slate-400 font-medium mt-3">
+                  Secure access is authenticated directly via Google Firebase console.
+                </p>
               </div>
-            )}
+            </div>
 
           </div>
         </div>
@@ -1351,7 +1200,7 @@ export default function App() {
                                       Close
                                     </button>
                                   </div>
-                                  {(item.description ? getFilteredProducts(item.description) : products).map(prod => (
+                                  {getFilteredProducts(item.description).map(prod => (
                                     <button
                                       type="button"
                                       key={prod.name}
@@ -1361,7 +1210,7 @@ export default function App() {
                                       {prod.name} - ₹{prod.rate} ({prod.unit})
                                     </button>
                                   ))}
-                                  {(item.description ? getFilteredProducts(item.description) : products).length === 0 && (
+                                  {getFilteredProducts(item.description).length === 0 && (
                                     <div className="text-center py-2 text-xs text-slate-400 font-medium">New product. Enter manually.</div>
                                   )}
                                 </div>
@@ -1442,7 +1291,7 @@ export default function App() {
                         Quick Add Catalog Items (One-Click)
                       </h4>
                       <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto p-1 bg-slate-50 dark:bg-slate-900/30 rounded-lg">
-                        {products.map(prod => (
+                        {products.filter(p => p.inStock !== false).map(prod => (
                           <button
                             type="button"
                             key={prod.name}
@@ -1940,88 +1789,25 @@ export default function App() {
                           </span>
                         </div>
 
-                        {/* 6. GST Detailed Breakdown Grid */}
-                        <div className="p-0 bg-white text-black">
-                          <table className="tally-table w-full text-center" style={{ borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr>
-                                <th rowSpan={2} style={{ width: '20%' }}>HSN/SAC</th>
-                                <th rowSpan={2} style={{ width: '20%' }}>Taxable Value</th>
-                                <th colSpan={2} style={{ width: '20%' }}>Central Tax</th>
-                                <th colSpan={2} style={{ width: '20%' }}>State Tax</th>
-                                <th rowSpan={2} style={{ width: '20%' }}>Total Tax Amount</th>
-                              </tr>
-                              <tr>
-                                <th>Rate</th>
-                                <th>Amount</th>
-                                <th>Rate</th>
-                                <th>Amount</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {calculatedInvoice.items.reduce((acc, curr) => {
-                                const exist = acc.find(x => x.hsn === curr.hsn && x.gstRate === curr.gstRate);
-                                if (exist) {
-                                  exist.taxableValue += curr.taxableValue;
-                                  exist.cgstAmount += curr.cgstAmount || 0;
-                                  exist.sgstAmount += curr.sgstAmount || 0;
-                                  exist.totalAmount += (curr.cgstAmount || 0) + (curr.sgstAmount || 0);
-                                } else {
-                                  acc.push({
-                                    hsn: curr.hsn || 'N/A',
-                                    gstRate: curr.gstRate,
-                                    taxableValue: curr.taxableValue,
-                                    cgstRate: curr.cgstRate || (curr.gstRate / 2),
-                                    cgstAmount: curr.cgstAmount || 0,
-                                    sgstRate: curr.sgstRate || (curr.gstRate / 2),
-                                    sgstAmount: curr.sgstAmount || 0,
-                                    totalAmount: (curr.cgstAmount || 0) + (curr.sgstAmount || 0)
-                                  });
-                                }
-                                return acc;
-                              }, []).map((gstGroup, gIdx) => (
-                                <tr key={gIdx} className="tally-border-b">
-                                  <td className="font-mono">{gstGroup.hsn}</td>
-                                  <td className="text-right">
-                                    ₹{gstGroup.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                  <td>{gstGroup.cgstRate}%</td>
-                                  <td className="text-right">
-                                    ₹{gstGroup.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                  <td>{gstGroup.sgstRate}%</td>
-                                  <td className="text-right">
-                                    ₹{gstGroup.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                  <td className="text-right font-bold">
-                                    ₹{gstGroup.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  </td>
-                                </tr>
-                              ))}
-                              {/* Total GST row */}
-                              <tr className="font-bold tally-bg-grey" style={{ borderTop: '1px solid #000' }}>
-                                <td>Total</td>
-                                <td className="text-right">
-                                  ₹{calculatedInvoice.items.reduce((sum, x) => sum + x.taxableValue, 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td>&nbsp;</td>
-                                <td className="text-right">
-                                  ₹{calculatedInvoice.cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td>&nbsp;</td>
-                                <td className="text-right">
-                                  ₹{calculatedInvoice.sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                                <td className="text-right font-black">
-                                  ₹{(calculatedInvoice.cgstTotal + calculatedInvoice.sgstTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
+                        {/* 6. Bank Details block */}
+                        <div className="p-3 tally-border-b bg-white text-[9px] text-black grid grid-cols-2 gap-4">
+                          <div>
+                            <span className="text-slate-400 font-bold block uppercase tracking-wider text-[8px] mb-1">Bank Details (NEFT / RTGS / IMPS)</span>
+                            <div className="text-[9px] font-semibold text-slate-800 space-y-0.5">
+                              <div>Bank Name: <strong className="text-slate-900">Nandani Sahakari Bank Ltd</strong></div>
+                              <div>Branch Name: <strong className="text-slate-900">Kumbhoj</strong></div>
+                              <div>Account No.: <strong className="text-slate-900 font-mono text-[10px]">0070002010000163</strong></div>
+                              <div>IFSC Code: <strong className="text-slate-900 font-mono text-[10px]">HDFC0CNSBLN</strong></div>
+                              <div>Account Holder: <strong className="text-slate-900">SANMATI SALES</strong></div>
+                            </div>
+                          </div>
+                          <div className="text-right flex flex-col justify-end">
+                            <p className="text-[8px] text-slate-400 italic">Please mention invoice number in payment remarks.</p>
+                          </div>
                         </div>
 
                         {/* 7. Declaration & Signatures */}
-                        <div className="grid grid-cols-2 bg-white tally-border-t text-black">
+                        <div className="grid grid-cols-2 bg-white text-black">
                           <div className="p-3 tally-border-r text-[8px] text-slate-500 leading-normal">
                             <strong>Declaration:</strong><br />
                             We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
@@ -2213,26 +1999,123 @@ export default function App() {
 
                 {/* List of products */}
                 <div className="lg:col-span-2 glass-panel p-6 space-y-4">
-                  <h2 className="text-base font-bold pb-2 border-b border-slate-100 dark:border-slate-800">Autocomplete Product Catalog</h2>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 className="text-base font-bold">Autocomplete Product Catalog</h2>
+                    
+                    {/* Catalog Search Bar */}
+                    <div className="relative w-full sm:w-64">
+                      <input 
+                        type="text" 
+                        id="catalogSearch"
+                        className="form-input py-1 px-3 text-xs w-full"
+                        placeholder="Filter products list..."
+                        onChange={(e) => {
+                          const val = e.target.value.toLowerCase();
+                          const rows = document.querySelectorAll('.catalog-item-row');
+                          rows.forEach(row => {
+                            const text = row.querySelector('.product-name-cell')?.value.toLowerCase() || '';
+                            if (text.includes(val)) {
+                              row.classList.remove('hidden');
+                            } else {
+                              row.classList.add('hidden');
+                            }
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  
                   <div className="overflow-x-auto max-h-[500px]">
-                    <table className="edit-table">
+                    <table className="edit-table w-full text-xs">
                       <thead>
                         <tr>
-                          <th>Product Name</th>
-                          <th>HSN</th>
-                          <th>Unit</th>
-                          <th className="text-right">Default Rate (₹)</th>
-                          <th className="text-center">GST</th>
+                          <th style={{ width: '35%' }}>Product Name</th>
+                          <th style={{ width: '15%' }} className="text-center">HSN</th>
+                          <th style={{ width: '12%' }} className="text-center">Unit</th>
+                          <th style={{ width: '15%' }} className="text-right">Rate (₹)</th>
+                          <th style={{ width: '12%' }} className="text-center">GST</th>
+                          <th style={{ width: '8%' }} className="text-center">Stock</th>
+                          <th style={{ width: '3%' }} className="text-center">Del</th>
                         </tr>
                       </thead>
                       <tbody>
                         {products.map(prod => (
-                          <tr key={prod.name}>
-                            <td className="font-semibold">{prod.name}</td>
-                            <td className="font-mono text-xs">{prod.hsn || '-'}</td>
-                            <td>{prod.unit}</td>
-                            <td className="text-right font-mono">₹{prod.rate}</td>
-                            <td className="text-center"><span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300 rounded text-xs font-bold">{prod.gstRate}%</span></td>
+                          <tr key={prod.id || prod.name} className="catalog-item-row hover:bg-slate-50/50 dark:hover:bg-slate-800/10">
+                            <td>
+                              <input 
+                                type="text"
+                                className="w-full bg-transparent border-0 font-semibold text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5 product-name-cell"
+                                value={prod.name}
+                                onChange={e => handleInlineProductEdit(prod.id, 'name', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <input 
+                                type="text"
+                                className="w-full bg-transparent border-0 font-mono text-center text-slate-650 dark:text-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5"
+                                value={prod.hsn || ''}
+                                placeholder="-"
+                                onChange={e => handleInlineProductEdit(prod.id, 'hsn', e.target.value)}
+                              />
+                            </td>
+                            <td>
+                              <select 
+                                className="w-full bg-transparent border-0 text-center focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5"
+                                value={prod.unit || 'Pcs'}
+                                onChange={e => handleInlineProductEdit(prod.id, 'unit', e.target.value)}
+                              >
+                                <option value="Pcs">Pcs</option>
+                                <option value="Mtr">Mtr</option>
+                                <option value="Box">Box</option>
+                                <option value="Kg">Kg</option>
+                                <option value="Dzn">Dzn</option>
+                              </select>
+                            </td>
+                            <td className="text-right font-mono">
+                              <input 
+                                type="number"
+                                step="any"
+                                className="w-20 bg-transparent border-0 text-right font-mono focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5"
+                                value={prod.rate}
+                                onChange={e => handleInlineProductEdit(prod.id, 'rate', e.target.value)}
+                              />
+                            </td>
+                            <td className="text-center">
+                              <select 
+                                className="bg-transparent border-0 text-center text-[10px] font-bold focus:bg-white dark:focus:bg-slate-900 focus:ring-1 focus:ring-indigo-500 rounded px-1 py-0.5"
+                                value={prod.gstRate}
+                                onChange={e => handleInlineProductEdit(prod.id, 'gstRate', e.target.value)}
+                              >
+                                <option value={0}>0%</option>
+                                <option value={5}>5%</option>
+                                <option value={12}>12%</option>
+                                <option value={18}>18%</option>
+                                <option value={28}>28%</option>
+                              </select>
+                            </td>
+                            <td className="text-center">
+                              <button 
+                                type="button"
+                                onClick={() => handleInlineProductEdit(prod.id, 'inStock', prod.inStock === false ? true : false)}
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase transition-all flex items-center gap-1 mx-auto ${
+                                  prod.inStock !== false 
+                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200' 
+                                    : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-450 border border-rose-200'
+                                }`}
+                                title="Toggle stock status"
+                              >
+                                {prod.inStock !== false ? 'In Stock' : 'Out of Stock'}
+                              </button>
+                            </td>
+                            <td className="text-center">
+                              <button 
+                                onClick={() => handleProductDelete(prod.id, prod.name)}
+                                className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950 rounded transition-colors"
+                                title="Delete product"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -2349,56 +2232,33 @@ export default function App() {
                 </div>
               </div>
             )}
-
             {activeTab === 'settings' && (
               /* Connection configuration & Whitelist manager */
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
                 
-                {/* Connection Form */}
+                {/* Connection Info */}
                 <div className="glass-panel p-6 space-y-4">
                   <h2 className="text-base font-bold pb-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
                     <Database className="w-5 h-5 text-indigo-500" />
-                    <span>Connection Settings</span>
+                    <span>Database Status</span>
                   </h2>
-                  <form onSubmit={handleSaveConnection} className="space-y-4">
-                    <div className="form-group">
-                      <label className="form-label">Google OAuth Client ID</label>
-                      <input 
-                        type="text" 
-                        className="form-input font-mono text-xs" 
-                        placeholder="xxxx.apps.googleusercontent.com" 
-                        value={googleClientId}
-                        onChange={e => setGoogleClientId(e.target.value)}
-                      />
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Google Cloud OAuth 2.0 Web Client ID to trigger Google Identity Login.
-                      </p>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 rounded-xl flex items-center gap-3 border border-emerald-100 dark:border-emerald-900/50">
+                      <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                      <div className="text-xs font-semibold">
+                        Connected to Cloud Firestore database: <strong>sanmati-sales</strong>
+                      </div>
                     </div>
 
-                    {spreadsheetId && (
-                      <div className="form-group">
-                        <label className="form-label">Connected Google Sheets Database</label>
-                        <div className="flex gap-2">
-                          <input 
-                            type="text" 
-                            className="form-input font-mono text-xs bg-slate-50 dark:bg-slate-900/50 text-slate-500" 
-                            readOnly 
-                            value={spreadsheetId}
-                          />
-                          <a 
-                            href={`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="btn btn-secondary text-xs px-3 flex items-center justify-center gap-1 flex-shrink-0"
-                          >
-                            Open Sheet
-                          </a>
-                        </div>
-                        <p className="text-[10px] text-slate-400 mt-1">
-                          This is the spreadsheet automatically provisioned inside your Google Drive.
-                        </p>
-                      </div>
-                    )}
+                    <div className="form-group">
+                      <label className="form-label">Firebase Project ID</label>
+                      <input 
+                        type="text" 
+                        className="form-input font-mono text-xs bg-slate-50 dark:bg-slate-900/50 text-slate-500" 
+                        readOnly 
+                        value="do-not-delete-apis-31161"
+                      />
+                    </div>
 
                     {companyGstin && (
                       <div className="form-group">
@@ -2410,15 +2270,11 @@ export default function App() {
                           value={companyGstin}
                         />
                         <p className="text-[10px] text-slate-400 mt-1">
-                          This GSTIN is locked and stored securely in the database.
+                          This GSTIN is locked and stored securely in your database.
                         </p>
                       </div>
                     )}
-
-                    <button type="submit" className="btn btn-primary py-2 text-sm flex items-center gap-1.5">
-                      <Save className="w-4 h-4" /> Save Connection Configuration
-                    </button>
-                  </form>
+                  </div>
                 </div>
 
                 {/* Whitelist Panel */}
@@ -2533,68 +2389,8 @@ export default function App() {
 
       {/* Footer copyright section (Hidden on Print) */}
       <footer className="py-6 border-t border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400 font-semibold no-print">
-        © 2026 Sanmati Sales Billing Engine. Built on Google Sheets directly. Secure, serverless, standard-compliant.
+        © 2026 Sanmati Sales Billing Engine. Powered by Google Cloud Firestore. Secure, serverless, standard-compliant.
       </footer>
-
-      {/* Duplicate Sheets Choice Dialog */}
-      {showDuplicateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in no-print">
-          <div className="w-full max-w-md glass-panel p-6 shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 text-left">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-              <AlertCircle className="w-6 h-6 text-amber-500 flex-shrink-0" />
-              <h3 className="text-lg font-bold tracking-tight">Duplicate Databases Found</h3>
-            </div>
-            
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              We found multiple existing billing databases named <strong>"Sanmati Sales - Billing Database"</strong> inside your Google Drive. 
-              Please choose whether you want to connect to one of these existing databases or create a brand new one.
-            </p>
-            
-            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-              {duplicateSheets.map(sheet => (
-                <button
-                  type="button"
-                  key={sheet.id}
-                  onClick={() => handleSelectDuplicateSheet(sheet.id, sheet.name)}
-                  className="w-full p-3 text-left rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex justify-between items-center bg-white dark:bg-slate-950 shadow-sm"
-                >
-                  <div className="min-w-0 pr-2">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">Database (Google Sheet)</p>
-                    <p className="text-[10px] text-slate-400 font-mono truncate">{sheet.id}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="text-[9px] text-slate-450 uppercase font-extrabold">Modified</p>
-                    <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">
-                      {new Date(sheet.modifiedTime).toLocaleDateString()}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-            
-            <div className="pt-2 flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={handleCreateNewFromDuplicate}
-                className="w-full btn btn-primary py-2 text-xs flex items-center justify-center gap-1.5"
-              >
-                <Plus className="w-4 h-4" /> Create a Brand New Database
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDuplicateModal(false);
-                  setIsVerifyingAuth(false);
-                  setAuthTempToken(null);
-                }}
-                className="w-full text-center text-xs font-bold text-rose-500 hover:underline py-1"
-              >
-                Cancel Sign-In
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

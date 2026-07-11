@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check if user is logged in
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    // Helper to check if user is whitelisted as Admin
+    function isAdmin() {
+      return isLoggedIn() && 
+        exists(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower())) &&
+        get(/databases/$(database)/documents/whitelist/$(request.auth.token.email.lower())).data.role == "Admin";
+    }
+
+    // Whitelist rules: Admins can manage the whitelist; anyone authenticated can read it
+    match /whitelist/{email} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin() || (isLoggedIn() && !exists(/databases/$(database)/documents/whitelist/first_user_marker)); 
+    }
+
+    // Products rules: Authenticated users can read products; admins can manage them
+    match /products/{product} {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin();
+    }
+
+    // Customers rules: Authenticated users can read/write customer information
+    match /customers/{customer} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+
+    // Invoices rules: Authenticated users can manage invoices
+    match /invoices/{invoiceNo} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn();
+    }
+
+    // Settings rules: Authenticated users can read company settings; admins can update them
+    match /settings/company {
+      allow read: if isLoggedIn();
+      allow write: if isAdmin() || (isLoggedIn() && !exists(/databases/$(database)/documents/settings/company));
+    }
+  }
+}
