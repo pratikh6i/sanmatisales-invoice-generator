@@ -672,6 +672,13 @@ nav button:hover {
 
 /* PRINT MEDIA OVERRIDES - CRITICAL */
 @media print {
+  /* Force browsers to print backgrounds and background colors (grey fills) */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
   /* Hide all dashboard/edit chrome and UI elements */
   body * {
     visibility: hidden;

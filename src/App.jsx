@@ -680,6 +680,18 @@ export default function App() {
   };
 
   const handleShareWhatsApp = (invoice, calculated) => {
+    // Prompt user to save as PDF first before redirecting to WhatsApp
+    const proceedPrint = window.confirm(
+      "To share the PDF invoice:\n\n" +
+      "1. Save the invoice as a PDF first (via the print dialog).\n" +
+      "2. Once saved, attach the PDF file in the WhatsApp window that will open now.\n\n" +
+      "Would you like to open the Print Dialog now to save the PDF first?"
+    );
+    
+    if (proceedPrint) {
+      triggerPrint(currentTemplate);
+    }
+
     let phone = invoice.customerWhatsapp || '';
     
     // Fallback: search in customer database if empty in invoice
