@@ -513,8 +513,8 @@ export const api = {
       return getStorageItem('bill_mock_invoices', MOCK_INVOICES);
     }
 
-    // 1. Fetch Invoices metadata
-    const invMeta = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A2:M`);
+    // 1. Fetch Invoices metadata (columns A to O including transport info)
+    const invMeta = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A2:O`);
     const invRows = invMeta.values || [];
     
     // 2. Fetch InvoiceItems
@@ -561,6 +561,8 @@ export const api = {
       grandTotal: parseFloat(r[10]) || 0,
       createdBy: r[11] || 'System',
       createdAt: r[12] || '',
+      transportMode: r[13] || '',
+      vehicleNo: r[14] || '',
       items: itemsMap[r[0]?.toString().trim()] || []
     }));
 
@@ -586,7 +588,8 @@ export const api = {
       invoice.invoiceNo, invoice.date, invoice.customerName, invoice.billingAddress,
       invoice.shippingAddress || invoice.billingAddress, invoice.customerGstin,
       invoice.placeOfSupply, invoice.subtotal, invoice.discount, invoice.taxTotal,
-      invoice.grandTotal, creatorEmail, idx >= 0 ? invoices[idx].createdAt : new Date().toISOString()
+      invoice.grandTotal, creatorEmail, idx >= 0 ? invoices[idx].createdAt : new Date().toISOString(),
+      invoice.transportMode || '', invoice.vehicleNo || ''
     ]];
 
     if (idx >= 0) {
@@ -604,7 +607,7 @@ export const api = {
       }
       
       if (sheetRow > -1) {
-        await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A${sheetRow}:M${sheetRow}?valueInputOption=USER_ENTERED`, {
+        await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A${sheetRow}:O${sheetRow}?valueInputOption=USER_ENTERED`, {
           method: 'PUT',
           body: JSON.stringify({ values: metaValues })
         });
@@ -657,11 +660,11 @@ export const api = {
     const invoiceNoStr = invoiceNo.toString().trim();
 
     // 1. Delete Invoice metadata row
-    const rawMeta = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A:M`);
+    const rawMeta = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A:O`);
     const rawRows = rawMeta.values || [];
     const filteredRows = rawRows.filter((r, i) => i === 0 || r[0]?.toString().trim() !== invoiceNoStr);
     
-    await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A:M:clear`, { method: 'POST' });
+    await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A:O:clear`, { method: 'POST' });
     await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Invoices!A1?valueInputOption=USER_ENTERED`, {
       method: 'PUT',
       body: JSON.stringify({ values: filteredRows })
@@ -735,5 +738,84 @@ export const api = {
       body: JSON.stringify({ values: filteredRows })
     });
     return { success: true };
+  },
+
+  // Company Settings tab dynamic manager
+  async ensureSettingsSheetExists() {
+    if (currentMode === 'mock' || !spreadsheetId) return;
+    try {
+      // Try to read CompanySettings headers to check if it exists
+      await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CompanySettings!A1:B1`);
+    } catch (err) {
+      console.log("CompanySettings tab not found. Creating dynamically...");
+      const addSheetBody = {
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: 'CompanySettings'
+              }
+            }
+          }
+        ]
+      };
+      // Try executing sheet creation
+      try {
+        await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+          method: 'POST',
+          body: JSON.stringify(addSheetBody)
+        });
+        const headers = {
+          values: [['Setting Key', 'Setting Value']]
+        };
+        await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CompanySettings!A1:B1?valueInputOption=USER_ENTERED`, {
+          method: 'PUT',
+          body: JSON.stringify(headers)
+        });
+      } catch (createErr) {
+        console.error("Failed to dynamically add CompanySettings tab:", createErr);
+      }
+    }
+  },
+
+  async getCompanyGstin() {
+    if (currentMode === 'mock') {
+      return localStorage.getItem('company_gstin') || '';
+    }
+    
+    try {
+      await this.ensureSettingsSheetExists();
+      const res = await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CompanySettings!A2:B2`);
+      const rows = res.values || [];
+      if (rows.length > 0 && rows[0][0] === 'COMPANY_GSTIN') {
+        return rows[0][1] || '';
+      }
+      return '';
+    } catch (e) {
+      console.warn("Failed to read company GSTIN from sheets:", e);
+      return localStorage.getItem('company_gstin') || '';
+    }
+  },
+
+  async saveCompanyGstin(gstin) {
+    if (currentMode === 'mock') {
+      localStorage.setItem('company_gstin', gstin);
+      return { success: true };
+    }
+
+    try {
+      await this.ensureSettingsSheetExists();
+      const rowValues = [['COMPANY_GSTIN', gstin]];
+      await callGoogleAPI(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/CompanySettings!A2:B2?valueInputOption=USER_ENTERED`, {
+        method: 'PUT',
+        body: JSON.stringify({ values: rowValues })
+      });
+      localStorage.setItem('company_gstin', gstin);
+      return { success: true };
+    } catch (e) {
+      console.error("Failed to save company GSTIN to sheets:", e);
+      localStorage.setItem('company_gstin', gstin);
+      return { success: true };
+    }
   }
 };

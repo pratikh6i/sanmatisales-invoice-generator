@@ -854,3 +854,90 @@ nav button:hover {
   }
 }
 
+/* TALLY TAX INVOICE STYLING */
+.tally-tax-invoice {
+  font-family: 'Arial', sans-serif !important;
+  font-size: 11px !important;
+  color: #000 !important;
+}
+
+.tally-tax-invoice .tally-border {
+  border: 1px solid #1e293b !important;
+}
+
+.tally-tax-invoice .tally-border-t {
+  border-top: 1px solid #1e293b !important;
+}
+
+.tally-tax-invoice .tally-border-b {
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.tally-tax-invoice .tally-border-l {
+  border-left: 1px solid #1e293b !important;
+}
+
+.tally-tax-invoice .tally-border-r {
+  border-right: 1px solid #1e293b !important;
+}
+
+.tally-tax-invoice .tally-bg-grey {
+  background-color: #f1f5f9 !important;
+}
+
+.tally-tax-invoice .tally-table {
+  width: 100%;
+  border-collapse: collapse !important;
+}
+
+.tally-tax-invoice .tally-table th {
+  border: 1px solid #1e293b !important;
+  background-color: #e2e8f0 !important;
+  color: #000 !important;
+  font-size: 10.5px !important;
+  font-weight: 800 !important;
+  text-transform: uppercase;
+  padding: 5px 4px !important;
+}
+
+.tally-tax-invoice .tally-table td {
+  border-left: 1px solid #1e293b !important;
+  border-right: 1px solid #1e293b !important;
+  padding: 4px 6px !important;
+  font-size: 10px !important;
+}
+
+.tally-tax-invoice .tally-table tr.item-row td {
+  border-bottom: none !important;
+}
+
+.tally-tax-invoice .tally-table tr.total-row td {
+  border-top: 1px solid #1e293b !important;
+  border-bottom: 1px solid #1e293b !important;
+  font-weight: bold !important;
+  background-color: #f1f5f9 !important;
+}
+
+.tally-tax-invoice .tally-cell-label {
+  font-weight: bold;
+  color: #334155;
+  font-size: 10px;
+}
+
+.tally-tax-invoice .tally-cell-value {
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.tally-tax-invoice .tally-header-title {
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px;
+}
+
+.tally-tax-invoice .tally-company-name {
+  font-size: 13px !important;
+  font-weight: 900 !important;
+}
+
+

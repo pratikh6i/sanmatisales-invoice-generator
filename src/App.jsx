@@ -7,6 +7,9 @@ import {
 } from 'lucide-react';
 import { api } from './api';
 
+// Production environment detector
+const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+
 // Default empty invoice template
 const EMPTY_INVOICE = {
   invoiceNo: '',
@@ -17,6 +20,8 @@ const EMPTY_INVOICE = {
   customerGstin: '',
   customerWhatsapp: '',
   placeOfSupply: 'Maharashtra (27)',
+  transportMode: '',
+  vehicleNo: '',
   items: [
     { sNo: 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 18 }
   ],
@@ -34,13 +39,76 @@ const WhatsAppIcon = ({ className = "w-4 h-4" }) => (
   </svg>
 );
 
+// Standard Indian Currency Number-to-Words Converter
+const numberToWords = (num) => {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const g = (n) => {
+    if (n < 20) return a[n];
+    const digit = n % 10;
+    return b[Math.floor(n / 10)] + (digit ? '-' + a[digit].trim() : '') + ' ';
+  };
+
+  const h = (n) => {
+    let str = '';
+    if (n > 99) {
+      str += a[Math.floor(n / 100)] + 'Hundred ';
+      n %= 100;
+    }
+    if (n > 0) {
+      if (str !== '') str += 'and ';
+      str += g(n);
+    }
+    return str;
+  };
+
+  if (!num || num === 0) return 'Zero Rupees Only';
+
+  let rupees = Math.floor(num);
+  let paise = Math.round((num - rupees) * 100);
+
+  let str = '';
+
+  if (rupees > 9999999) {
+    str += h(Math.floor(rupees / 10000000)) + 'Crore ';
+    rupees %= 10000000;
+  }
+  if (rupees > 99999) {
+    str += h(Math.floor(rupees / 100000)) + 'Lakh ';
+    rupees %= 100000;
+  }
+  if (rupees > 999) {
+    str += h(Math.floor(rupees / 1000)) + 'Thousand ';
+    rupees %= 1000;
+  }
+  if (rupees > 0) {
+    str += h(rupees);
+  }
+
+  let finalStr = str.trim() + ' Rupees';
+
+  if (paise > 0) {
+    finalStr += ' and ' + h(paise).trim() + ' Paise';
+  }
+
+  return finalStr + ' Only';
+};
+
 export default function App() {
   // Theme & Mode Settings
   const [theme, setTheme] = useState(localStorage.getItem('bill_theme') || 'light');
-  const [mode, setMode] = useState(api.getMode());
+  const [mode, setMode] = useState(isProd ? 'live' : api.getMode());
   const [googleClientId, setGoogleClientId] = useState(api.getGoogleClientId());
   const [spreadsheetId, setSpreadsheetId] = useState(api.getSpreadsheetId() || '');
   const [printSize, setPrintSize] = useState('a4');
+  const [currentTemplate, setCurrentTemplate] = useState('bill'); // 'bill' (original) or 'tax' (Tally-style Tax Invoice)
+
+  // Seller GSTIN States
+  const [companyGstin, setCompanyGstin] = useState('');
+  const [showGstinModal, setShowGstinModal] = useState(false);
+  const [gstinInput, setGstinInput] = useState('');
+  const [isSavingGstin, setIsSavingGstin] = useState(false);
 
   // Auth State
   const [user, setUser] = useState(null);
@@ -76,9 +144,13 @@ export default function App() {
 
   // Synchronize Theme & Mode
   useEffect(() => {
+    if (isProd && mode !== 'live') {
+      api.setMode('live');
+      setMode('live');
+    }
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('bill_theme', theme);
-  }, [theme]);
+  }, [theme, mode]);
 
   // Restore Persisted Session on Startup (Google OAuth persistence)
   useEffect(() => {
@@ -122,15 +194,29 @@ export default function App() {
     restoreSession();
   }, [mode]);
 
+  const loadCompanyGstin = async () => {
+    try {
+      const gstin = await api.getCompanyGstin();
+      setCompanyGstin(gstin);
+      if (!gstin) {
+        setShowGstinModal(true);
+      }
+    } catch (err) {
+      console.warn('Failed to load company GSTIN:', err);
+    }
+  };
+
   // Load data when user changes
   useEffect(() => {
     if (user) {
       loadAllData();
+      loadCompanyGstin();
     } else {
       setInvoices([]);
       setProducts([]);
       setCustomers([]);
       setWhitelist([]);
+      setCompanyGstin('');
     }
   }, [user, mode]);
 
@@ -581,6 +667,8 @@ export default function App() {
       customerGstin: invoice.customerGstin || '',
       customerWhatsapp: customers.find(c => c.name.toLowerCase() === invoice.customerName.toLowerCase())?.whatsapp || '',
       placeOfSupply: invoice.placeOfSupply || 'Maharashtra (27)',
+      transportMode: invoice.transportMode || '',
+      vehicleNo: invoice.vehicleNo || '',
       items: invoice.items.map(item => ({
         sNo: item.sNo,
         description: item.description,
@@ -670,8 +758,11 @@ export default function App() {
     }
   };
 
-  const triggerPrint = () => {
-    window.print();
+  const triggerPrint = (template = 'bill') => {
+    setCurrentTemplate(template);
+    setTimeout(() => {
+      window.print();
+    }, 150);
   };
 
   const handleShareWhatsApp = (invoice, calculated) => {
@@ -777,23 +868,25 @@ export default function App() {
 
         {/* Action Controls */}
         <div className="flex items-center gap-4">
-          {/* Mode Badge */}
-          <button 
-            onClick={() => {
-              const nextMode = mode === 'mock' ? 'live' : 'mock';
-              api.setMode(nextMode);
-              setMode(nextMode);
-              showStatus(`Switched to ${nextMode} mode. App refreshed.`);
-            }} 
-            className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors flex items-center gap-1.5 ${
-              mode === 'live' 
-                ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800' 
-                : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Mode: {mode.toUpperCase()}</span>
-          </button>
+          {/* Mode Badge (Hidden in Production) */}
+          {!isProd && (
+            <button 
+              onClick={() => {
+                const nextMode = mode === 'mock' ? 'live' : 'mock';
+                api.setMode(nextMode);
+                setMode(nextMode);
+                showStatus(`Switched to ${nextMode} mode. App refreshed.`);
+              }} 
+              className={`px-3 py-1 rounded-full text-xs font-bold border transition-colors flex items-center gap-1.5 ${
+                mode === 'live' 
+                  ? 'bg-indigo-50 text-indigo-600 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800' 
+                  : 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Mode: {mode.toUpperCase()}</span>
+            </button>
+          )}
 
           {/* Theme Toggle */}
           <button 
@@ -909,12 +1002,18 @@ export default function App() {
                       <AlertCircle className="w-5 h-5 flex-shrink-0" />
                       <span>Google Client ID is not configured!</span>
                     </div>
-                    <button 
-                      onClick={() => setMode('mock')}
-                      className="mt-2 text-xs font-bold underline text-left hover:text-rose-800"
-                    >
-                      Switch to Mock Mode to test without config
-                    </button>
+                    {!isProd ? (
+                      <button 
+                        onClick={() => setMode('mock')}
+                        className="mt-2 text-xs font-bold underline text-left hover:text-rose-800"
+                      >
+                        Switch to Mock Mode to test without config
+                      </button>
+                    ) : (
+                      <p className="text-xs text-rose-400 mt-1">
+                        Please configure Google Client ID in settings to enable secure login.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1148,6 +1247,28 @@ export default function App() {
                         />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="form-group mb-0">
+                        <label className="form-label">Transport Mode (optional)</label>
+                        <input 
+                          type="text" 
+                          className="form-input py-2"
+                          placeholder="e.g. A-SELF"
+                          value={invoiceForm.transportMode || ''}
+                          onChange={e => handleFormChange('transportMode', e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group mb-0">
+                        <label className="form-label">Vehicle Number (optional)</label>
+                        <input 
+                          type="text" 
+                          className="form-input py-2 font-mono"
+                          placeholder="e.g. MH-09-XX-1234"
+                          value={invoiceForm.vehicleNo || ''}
+                          onChange={e => handleFormChange('vehicleNo', e.target.value)}
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Items Grid Editor */}
@@ -1372,11 +1493,22 @@ export default function App() {
                       <span>{isEditing ? 'Update Invoice' : 'Save Invoice'}</span>
                     </button>
                     <button 
-                      onClick={triggerPrint}
-                      className="btn btn-secondary py-2.5 px-4"
-                      title="Print Invoice"
+                      type="button"
+                      onClick={() => triggerPrint('bill')}
+                      className="btn btn-secondary py-2.5 px-3.5 flex items-center gap-1 text-xs font-bold"
+                      title="Print Regular Bill"
                     >
-                      <Printer className="w-5 h-5" />
+                      <Printer className="w-4 h-4" />
+                      <span>Print Bill</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => triggerPrint('tax')}
+                      className="btn bg-slate-700 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white py-2.5 px-3.5 flex items-center gap-1 text-xs font-bold transition-colors"
+                      title="Print Tally Tax Invoice"
+                    >
+                      <Printer className="w-4 h-4 text-emerald-400" />
+                      <span>Print Tax Invoice</span>
                     </button>
                     <button 
                       type="button"
@@ -1397,7 +1529,29 @@ export default function App() {
                     <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                       <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" /> Real-time Live Bill Preview
                     </h3>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <button 
+                          onClick={() => setCurrentTemplate('bill')}
+                          className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase tracking-wide transition-all ${
+                            currentTemplate === 'bill'
+                              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          Bill
+                        </button>
+                        <button 
+                          onClick={() => setCurrentTemplate('tax')}
+                          className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase tracking-wide transition-all ${
+                            currentTemplate === 'tax'
+                              ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          Tax Invoice
+                        </button>
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-slate-400">Size:</span>
                         <select
@@ -1412,7 +1566,7 @@ export default function App() {
                         </select>
                       </div>
                       <button 
-                        onClick={triggerPrint}
+                        onClick={() => triggerPrint(currentTemplate)}
                         className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-md hover:bg-slate-800 transition-colors"
                       >
                         <Printer className="w-4 h-4" /> Print PDF
@@ -1429,165 +1583,433 @@ export default function App() {
 
                   {/* Render exact paper template matching Excel format */}
                   <div className="bill-paper-container" ref={printRef}>
-                    <div className={`bill-paper print-size-${printSize}`}>
-                      <div className="bill-border-box">
-                        
-                        {/* Company Header Block */}
-                        <div className="bill-header-logo-section">
-                          {/* Logo SVG matching the screenshot's SS orange circular logo */}
-                          <svg className="w-12 h-12 mb-1" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="50" cy="50" r="45" fill="#f97316" />
-                            <path d="M25 45 C25 30, 75 30, 75 45 C75 55, 25 55, 25 65 C25 75, 75 75, 75 60" stroke="white" strokeWidth="10" strokeLinecap="round" fill="none" />
-                          </svg>
-                          <div className="bill-company-title">
-                            SANMATI SALES
-                          </div>
-                        </div>
-
-                        {/* Customer Information Block */}
-                        <div className="bill-meta-grid">
-                          <div className="bill-meta-col">
-                            <div className="bill-meta-row">
-                              <span className="bill-meta-label">Bill To:</span>
-                              <span>{invoiceForm.customerName || '__________________'}</span>
-                            </div>
-                            <div className="bill-meta-row">
-                              <span className="bill-meta-label">Customer Name:</span>
-                              <span>{invoiceForm.customerName || '__________________'}</span>
-                            </div>
-                            {invoiceForm.billingAddress && (
-                              <div className="bill-meta-row">
-                                <span className="bill-meta-label">Address:</span>
-                                <span>{invoiceForm.billingAddress}</span>
-                              </div>
-                            )}
-                            {invoiceForm.customerGstin && (
-                              <div className="bill-meta-row">
-                                <span className="bill-meta-label">GSTIN:</span>
-                                <span className="font-mono">{invoiceForm.customerGstin}</span>
-                              </div>
-                            )}
-                          </div>
+                    {currentTemplate === 'bill' ? (
+                      <div className={`bill-paper print-size-${printSize}`}>
+                        <div className="bill-border-box">
                           
-                          <div className="bill-meta-col">
-                            <div className="bill-meta-row">
-                              <span className="bill-meta-label">Date:</span>
-                              {/* Display date formatted as DD/MM/YYYY */}
-                              <span>{invoiceForm.date ? invoiceForm.date.split('-').reverse().join(' / ') : '__ / __ / ____'}</span>
+                          {/* Company Header Block */}
+                          <div className="bill-header-logo-section">
+                            {/* Logo SVG matching the screenshot's SS orange circular logo */}
+                            <svg className="w-12 h-12 mb-1" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="50" cy="50" r="45" fill="#f97316" />
+                              <path d="M25 45 C25 30, 75 30, 75 45 C75 55, 25 55, 25 65 C25 75, 75 75, 75 60" stroke="white" strokeWidth="10" strokeLinecap="round" fill="none" />
+                            </svg>
+                            <div className="bill-company-title">
+                              SANMATI SALES
                             </div>
-                            <div className="bill-meta-row">
-                              <span className="bill-meta-label">Invoice no:</span>
-                              <span className="font-bold">{invoiceForm.invoiceNo || '___'}</span>
+                          </div>
+
+                          {/* Customer Information Block */}
+                          <div className="bill-meta-grid">
+                            <div className="bill-meta-col">
+                              <div className="bill-meta-row">
+                                <span className="bill-meta-label">Bill To:</span>
+                                <span>{invoiceForm.customerName || '__________________'}</span>
+                              </div>
+                              <div className="bill-meta-row">
+                                <span className="bill-meta-label">Customer Name:</span>
+                                <span>{invoiceForm.customerName || '__________________'}</span>
+                              </div>
+                              {invoiceForm.billingAddress && (
+                                <div className="bill-meta-row">
+                                  <span className="bill-meta-label">Address:</span>
+                                  <span>{invoiceForm.billingAddress}</span>
+                                </div>
+                              )}
+                              {invoiceForm.customerGstin && (
+                                <div className="bill-meta-row">
+                                  <span className="bill-meta-label">GSTIN:</span>
+                                  <span className="font-mono">{invoiceForm.customerGstin}</span>
+                                </div>
+                              )}
                             </div>
-                            <div className="bill-meta-row">
-                              <span className="bill-meta-label">Place of Supply:</span>
-                              <span>{invoiceForm.placeOfSupply}</span>
+                            
+                            <div className="bill-meta-col">
+                              <div className="bill-meta-row">
+                                <span className="bill-meta-label">Date:</span>
+                                {/* Display date formatted as DD/MM/YYYY */}
+                                <span>{invoiceForm.date ? invoiceForm.date.split('-').reverse().join(' / ') : '__ / __ / ____'}</span>
+                              </div>
+                              <div className="bill-meta-row">
+                                <span className="bill-meta-label">Invoice no:</span>
+                                <span className="font-bold">{invoiceForm.invoiceNo || '___'}</span>
+                              </div>
+                              <div className="bill-meta-row">
+                                <span className="bill-meta-label">Place of Supply:</span>
+                                <span>{invoiceForm.placeOfSupply}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Table items */}
+                          <table className="bill-items-table">
+                            <thead>
+                              <tr>
+                                <th style={{ width: '8%' }} className="text-center">S.No.</th>
+                                <th style={{ width: '42%' }}>Item Description</th>
+                                {invoiceForm.items.some(i => i.hsn) && <th style={{ width: '12%' }} className="text-center">HSN</th>}
+                                <th style={{ width: '10%' }} className="text-center">Qty</th>
+                                <th style={{ width: '8%' }} className="text-center">Unit</th>
+                                <th style={{ width: '10%' }} className="text-right">Rate (₹)</th>
+                                <th style={{ width: '10%' }} className="text-right">Amount (₹)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {calculatedInvoice.items.map((item, idx) => (
+                                <tr key={idx} className="item-row">
+                                  <td className="text-center">{item.sNo}</td>
+                                  <td>{item.description || 'Custom Item'}</td>
+                                  {invoiceForm.items.some(i => i.hsn) && <td className="text-center font-mono text-xs">{item.hsn || '-'}</td>}
+                                  <td className="text-center">{item.qty}</td>
+                                  <td className="text-center">{item.unit}</td>
+                                  <td className="text-right">
+                                    {item.rate.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="text-right font-semibold">
+                                    {item.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              ))}
+                              {/* Empty spacing rows if items are short */}
+                              {Array.from({ length: Math.max(0, 6 - calculatedInvoice.items.length) }).map((_, i) => (
+                                <tr key={`empty-${i}`} style={{ height: '24px' }}>
+                                  <td colSpan={invoiceForm.items.some(item => item.hsn) ? 7 : 6}>&nbsp;</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+
+                          {/* Totals Section */}
+                          <div className="bill-totals-section">
+                            <div className="bill-terms-box">
+                              <div className="bill-terms-title">Terms & Conditions:</div>
+                              <ol style={{ paddingLeft: '14px', margin: 0 }}>
+                                {invoiceForm.terms.map((t, idx) => (
+                                  <li key={idx}>{t}</li>
+                                ))}
+                              </ol>
+                            </div>
+                            
+                            <div>
+                              <table className="bill-totals-table">
+                                <tbody>
+                                  <tr>
+                                    <td className="label">Total</td>
+                                    <td className="value">₹{calculatedInvoice.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  </tr>
+                                  {calculatedInvoice.discount > 0 && (
+                                    <tr>
+                                      <td className="label">Discount</td>
+                                      <td className="value">-₹{calculatedInvoice.discount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    </tr>
+                                  )}
+                                  
+                                  {/* GST Breakdowns */}
+                                  {calculatedInvoice.cgstTotal > 0 && (
+                                    <>
+                                      <tr>
+                                        <td className="label" style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>CGST Amount</td>
+                                        <td className="value" style={{ fontSize: '11px', color: '#666' }}>₹{calculatedInvoice.cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      </tr>
+                                      <tr>
+                                        <td className="label" style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>SGST Amount</td>
+                                        <td className="value" style={{ fontSize: '11px', color: '#666' }}>₹{calculatedInvoice.sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    </>
+                                  )}
+                                  {calculatedInvoice.igstTotal > 0 && (
+                                    <tr>
+                                      <td className="label" style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>IGST Amount</td>
+                                      <td className="value" style={{ fontSize: '11px', color: '#666' }}>₹{calculatedInvoice.igstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    </tr>
+                                  )}
+                                  
+                                  <tr className="grand-total">
+                                    <td className="label">Grand Total</td>
+                                    {/* Format as standard positive integer, though we support formula display matching Excel negative formatting if desired, let's keep it correct as positive */}
+                                    <td className="value">₹{calculatedInvoice.grandTotal.toLocaleString('en-IN')}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Signatory Box */}
+                          <div className="bill-footer">
+                            <div className="bill-signature-block">
+                              <div className="bill-signature-line">Authorized Signatory</div>
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`bill-paper tally-tax-invoice print-size-${printSize} tally-border p-0 bg-white`}>
+                        {/* 1. Header Box */}
+                        <div className="flex justify-between items-center p-2 tally-border-b tally-bg-grey text-black">
+                          <span className="text-[9px] font-bold">Debit Memo</span>
+                          <span className="tally-header-title text-center font-extrabold">TAX INVOICE</span>
+                          <span className="text-[9px] font-bold">Original</span>
+                        </div>
+
+                        {/* 2. Seller Details */}
+                        <div className="p-3 text-center tally-border-b bg-white text-black">
+                          <h1 className="tally-company-name uppercase font-black tracking-wide text-slate-900">SANMATI SALES</h1>
+                          <p className="text-[9px] font-semibold text-slate-700 mt-1">
+                            Rutvik Patil Udyog Samuh, Khangond Galli, Kumbhoj, 416 111
+                          </p>
+                          <p className="text-[9px] font-semibold text-slate-700">
+                            Tal- Hatkalangle, Dist.- Kolhapur
+                          </p>
+                          <div className="flex justify-center gap-4 text-[9px] text-slate-700 font-semibold mt-1">
+                            <span><strong>Mobile No.:</strong> 85305 15022</span>
+                            <span><strong>Email:</strong> sanmatisales9027@gmail.com</span>
+                          </div>
+                          <div className="flex justify-center gap-4 text-[9px] text-slate-700 font-semibold mt-0.5">
+                            <span><strong>PAN:</strong> GHEPP3279P</span>
+                            <span><strong>GSTIN:</strong> {companyGstin || '________________'}</span>
+                          </div>
+                        </div>
+
+                        {/* 3. Reference and Party Grid */}
+                        <div className="grid grid-cols-2 tally-border-b bg-white text-black">
+                          {/* Buyer / Customer Column */}
+                          <div className="p-3 tally-border-r space-y-1">
+                            <span className="text-[8px] uppercase text-slate-400 font-bold block">Buyer (Bill to)</span>
+                            <div className="text-[11px] font-extrabold text-slate-900">{invoiceForm.customerName || '__________________'}</div>
+                            {invoiceForm.billingAddress ? (
+                              <div className="text-[9px] text-slate-700 leading-normal whitespace-pre-wrap">{invoiceForm.billingAddress}</div>
+                            ) : (
+                              <div className="text-[9px] text-slate-400 italic">No address provided</div>
+                            )}
+                            <div className="pt-1 space-y-0.5 text-[9px] font-semibold text-slate-700">
+                              <div><strong>GSTIN:</strong> <span className="font-mono">{invoiceForm.customerGstin || 'N/A'}</span></div>
+                              <div><strong>Place of Supply:</strong> {invoiceForm.placeOfSupply}</div>
+                            </div>
+                          </div>
+
+                          {/* Invoice Meta Column */}
+                          <div className="grid grid-rows-4 text-[9px] font-semibold text-black">
+                            <div className="grid grid-cols-2 tally-border-b">
+                              <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Invoice No.</div>
+                              <div className="p-2 font-mono font-bold text-slate-400 italic">(Fill by Pen)</div>
+                            </div>
+                            <div className="grid grid-cols-2 tally-border-b">
+                              <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Date</div>
+                              <div className="p-2 font-bold">{invoiceForm.date ? invoiceForm.date.split('-').reverse().join(' / ') : '__ / __ / ____'}</div>
+                            </div>
+                            <div className="grid grid-cols-2 tally-border-b">
+                              <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Transport Mode</div>
+                              <div className="p-2">{invoiceForm.transportMode || '-'}</div>
+                            </div>
+                            <div className="grid grid-cols-2">
+                              <div className="p-2 tally-border-r bg-slate-50 text-slate-600">Vehicle No.</div>
+                              <div className="p-2 font-mono font-bold">{invoiceForm.vehicleNo || '-'}</div>
                             </div>
                           </div>
                         </div>
 
-                        {/* Table items */}
-                        <table className="bill-items-table">
+                        {/* 4. Table Items */}
+                        <table className="tally-table text-black">
                           <thead>
                             <tr>
-                              <th style={{ width: '8%' }} className="text-center">S.No.</th>
-                              <th style={{ width: '42%' }}>Item Description</th>
-                              {invoiceForm.items.some(i => i.hsn) && <th style={{ width: '12%' }} className="text-center">HSN</th>}
-                              <th style={{ width: '10%' }} className="text-center">Qty</th>
-                              <th style={{ width: '8%' }} className="text-center">Unit</th>
-                              <th style={{ width: '10%' }} className="text-right">Rate (₹)</th>
-                              <th style={{ width: '10%' }} className="text-right">Amount (₹)</th>
+                              <th style={{ width: '6%' }} className="text-center">Sl.</th>
+                              <th style={{ width: '44%' }} className="text-left">Description of Goods</th>
+                              <th style={{ width: '12%' }} className="text-center">HSN/SAC</th>
+                              <th style={{ width: '10%' }} className="text-center">Quantity</th>
+                              <th style={{ width: '8%' }} className="text-center">Rate</th>
+                              <th style={{ width: '8%' }} className="text-center">per</th>
+                              <th style={{ width: '12%' }} className="text-right">Amount</th>
                             </tr>
                           </thead>
                           <tbody>
                             {calculatedInvoice.items.map((item, idx) => (
                               <tr key={idx} className="item-row">
-                                <td className="text-center">{item.sNo}</td>
-                                <td>{item.description || 'Custom Item'}</td>
-                                {invoiceForm.items.some(i => i.hsn) && <td className="text-center font-mono text-xs">{item.hsn || '-'}</td>}
-                                <td className="text-center">{item.qty}</td>
-                                <td className="text-center">{item.unit}</td>
-                                <td className="text-right">
-                                  {item.rate.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                                <td className="text-center font-semibold">{item.sNo}</td>
+                                <td className="font-bold text-slate-900">{item.description}</td>
+                                <td className="text-center font-mono">{item.hsn || '-'}</td>
+                                <td className="text-center font-bold">{item.qty}</td>
+                                <td className="text-center">
+                                  {item.rate.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
-                                <td className="text-right font-semibold">
+                                <td className="text-center">{item.unit}</td>
+                                <td className="text-right font-bold">
                                   {item.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </td>
                               </tr>
                             ))}
-                            {/* Empty spacing rows if items are short */}
-                            {Array.from({ length: Math.max(0, 6 - calculatedInvoice.items.length) }).map((_, i) => (
-                              <tr key={`empty-${i}`} style={{ height: '24px' }}>
-                                <td colSpan={invoiceForm.items.some(item => item.hsn) ? 7 : 6}>&nbsp;</td>
+                            {/* Empty spacer rows */}
+                            {Array.from({ length: Math.max(0, 5 - calculatedInvoice.items.length) }).map((_, i) => (
+                              <tr key={`empty-${i}`} className="item-row" style={{ height: '22px' }}>
+                                <td className="text-center">&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
                               </tr>
                             ))}
+
+                            {/* CGST / SGST Breakdowns if applicable */}
+                            {calculatedInvoice.cgstTotal > 0 && (
+                              <>
+                                <tr className="item-row border-t border-slate-200">
+                                  <td>&nbsp;</td>
+                                  <td className="text-right font-bold text-slate-500">CGST Amount</td>
+                                  <td>&nbsp;</td>
+                                  <td>&nbsp;</td>
+                                  <td>&nbsp;</td>
+                                  <td>&nbsp;</td>
+                                  <td className="text-right font-bold text-slate-700">
+                                    ₹{calculatedInvoice.cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                                <tr className="item-row">
+                                  <td>&nbsp;</td>
+                                  <td className="text-right font-bold text-slate-500">SGST Amount</td>
+                                  <td>&nbsp;</td>
+                                  <td>&nbsp;</td>
+                                  <td>&nbsp;</td>
+                                  <td>&nbsp;</td>
+                                  <td className="text-right font-bold text-slate-700">
+                                    ₹{calculatedInvoice.sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              </>
+                            )}
+                            {calculatedInvoice.igstTotal > 0 && (
+                              <tr className="item-row border-t border-slate-200">
+                                <td>&nbsp;</td>
+                                <td className="text-right font-bold text-slate-500">IGST Amount</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td>&nbsp;</td>
+                                <td className="text-right font-bold text-slate-700">
+                                  ₹{calculatedInvoice.igstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            )}
+
+                            {/* Total Row */}
+                            <tr className="total-row">
+                              <td className="text-center">&nbsp;</td>
+                              <td className="text-right font-extrabold text-black">Total</td>
+                              <td>&nbsp;</td>
+                              <td className="text-center font-extrabold text-black">
+                                {calculatedInvoice.items.reduce((sum, item) => sum + item.qty, 0)}
+                              </td>
+                              <td>&nbsp;</td>
+                              <td>&nbsp;</td>
+                              <td className="text-right font-extrabold text-black">
+                                ₹{calculatedInvoice.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
                           </tbody>
                         </table>
 
-                        {/* Totals Section */}
-                        <div className="bill-totals-section">
-                          <div className="bill-terms-box">
-                            <div className="bill-terms-title">Terms & Conditions:</div>
-                            <ol style={{ paddingLeft: '14px', margin: 0 }}>
-                              {invoiceForm.terms.map((t, idx) => (
-                                <li key={idx}>{t}</li>
+                        {/* 5. Amount in Words */}
+                        <div className="p-3 tally-border-b bg-white text-[9px] text-black">
+                          <span className="text-slate-400 font-bold block">Amount Chargeable (in words):</span>
+                          <span className="font-extrabold text-slate-900 uppercase tracking-wide block mt-0.5">
+                            {numberToWords(calculatedInvoice.grandTotal)}
+                          </span>
+                        </div>
+
+                        {/* 6. GST Detailed Breakdown Grid */}
+                        <div className="p-0 bg-white text-black">
+                          <table className="tally-table w-full text-center" style={{ borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                <th rowSpan={2} style={{ width: '20%' }}>HSN/SAC</th>
+                                <th rowSpan={2} style={{ width: '20%' }}>Taxable Value</th>
+                                <th colSpan={2} style={{ width: '20%' }}>Central Tax</th>
+                                <th colSpan={2} style={{ width: '20%' }}>State Tax</th>
+                                <th rowSpan={2} style={{ width: '20%' }}>Total Tax Amount</th>
+                              </tr>
+                              <tr>
+                                <th>Rate</th>
+                                <th>Amount</th>
+                                <th>Rate</th>
+                                <th>Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {calculatedInvoice.items.reduce((acc, curr) => {
+                                const exist = acc.find(x => x.hsn === curr.hsn && x.gstRate === curr.gstRate);
+                                if (exist) {
+                                  exist.taxableValue += curr.taxableValue;
+                                  exist.cgstAmount += curr.cgstAmount || 0;
+                                  exist.sgstAmount += curr.sgstAmount || 0;
+                                  exist.totalAmount += (curr.cgstAmount || 0) + (curr.sgstAmount || 0);
+                                } else {
+                                  acc.push({
+                                    hsn: curr.hsn || 'N/A',
+                                    gstRate: curr.gstRate,
+                                    taxableValue: curr.taxableValue,
+                                    cgstRate: curr.cgstRate || (curr.gstRate / 2),
+                                    cgstAmount: curr.cgstAmount || 0,
+                                    sgstRate: curr.sgstRate || (curr.gstRate / 2),
+                                    sgstAmount: curr.sgstAmount || 0,
+                                    totalAmount: (curr.cgstAmount || 0) + (curr.sgstAmount || 0)
+                                  });
+                                }
+                                return acc;
+                              }, []).map((gstGroup, gIdx) => (
+                                <tr key={gIdx} className="tally-border-b">
+                                  <td className="font-mono">{gstGroup.hsn}</td>
+                                  <td className="text-right">
+                                    ₹{gstGroup.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td>{gstGroup.cgstRate}%</td>
+                                  <td className="text-right">
+                                    ₹{gstGroup.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td>{gstGroup.sgstRate}%</td>
+                                  <td className="text-right">
+                                    ₹{gstGroup.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                  <td className="text-right font-bold">
+                                    ₹{gstGroup.totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
                               ))}
-                            </ol>
-                          </div>
-                          
-                          <div>
-                            <table className="bill-totals-table">
-                              <tbody>
-                                <tr>
-                                  <td className="label">Total</td>
-                                  <td className="value">₹{calculatedInvoice.subtotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                </tr>
-                                {calculatedInvoice.discount > 0 && (
-                                  <tr>
-                                    <td className="label">Discount</td>
-                                    <td className="value">-₹{calculatedInvoice.discount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                  </tr>
-                                )}
-                                
-                                {/* GST Breakdowns */}
-                                {calculatedInvoice.cgstTotal > 0 && (
-                                  <>
-                                    <tr>
-                                      <td className="label" style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>CGST Amount</td>
-                                      <td className="value" style={{ fontSize: '11px', color: '#666' }}>₹{calculatedInvoice.cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    </tr>
-                                    <tr>
-                                      <td className="label" style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>SGST Amount</td>
-                                      <td className="value" style={{ fontSize: '11px', color: '#666' }}>₹{calculatedInvoice.sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    </tr>
-                                  </>
-                                )}
-                                {calculatedInvoice.igstTotal > 0 && (
-                                  <tr>
-                                    <td className="label" style={{ fontSize: '11px', fontWeight: 'normal', color: '#666' }}>IGST Amount</td>
-                                    <td className="value" style={{ fontSize: '11px', color: '#666' }}>₹{calculatedInvoice.igstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                  </tr>
-                                )}
-                                
-                                <tr className="grand-total">
-                                  <td className="label">Grand Total</td>
-                                  {/* Format as standard positive integer, though we support formula display matching Excel negative formatting if desired, let's keep it correct as positive */}
-                                  <td className="value">₹{calculatedInvoice.grandTotal.toLocaleString('en-IN')}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
+                              {/* Total GST row */}
+                              <tr className="font-bold tally-bg-grey" style={{ borderTop: '1px solid #000' }}>
+                                <td>Total</td>
+                                <td className="text-right">
+                                  ₹{calculatedInvoice.items.reduce((sum, x) => sum + x.taxableValue, 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td>&nbsp;</td>
+                                <td className="text-right">
+                                  ₹{calculatedInvoice.cgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td>&nbsp;</td>
+                                <td className="text-right">
+                                  ₹{calculatedInvoice.sgstTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                                <td className="text-right font-black">
+                                  ₹{(calculatedInvoice.cgstTotal + calculatedInvoice.sgstTotal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
                         </div>
 
-                        {/* Signatory Box */}
-                        <div className="bill-footer">
-                          <div className="bill-signature-block">
-                            <div className="bill-signature-line">Authorized Signatory</div>
+                        {/* 7. Declaration & Signatures */}
+                        <div className="grid grid-cols-2 bg-white tally-border-t text-black">
+                          <div className="p-3 tally-border-r text-[8px] text-slate-500 leading-normal">
+                            <strong>Declaration:</strong><br />
+                            We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.
+                          </div>
+                          <div className="p-3 flex flex-col justify-between items-end h-[75px]">
+                            <div className="text-[9px] font-black text-slate-800">for SANMATI SALES</div>
+                            <div className="text-[8px] text-slate-400 font-bold uppercase mr-1">Authorised Signatory</div>
                           </div>
                         </div>
-
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -1955,6 +2377,21 @@ export default function App() {
                       </div>
                     )}
 
+                    {companyGstin && (
+                      <div className="form-group">
+                        <label className="form-label">Business GSTIN (Locked)</label>
+                        <input 
+                          type="text" 
+                          className="form-input font-mono text-xs bg-slate-50 dark:bg-slate-900/50 text-slate-500 font-bold" 
+                          readOnly 
+                          value={companyGstin}
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          This GSTIN is locked and stored securely in the database.
+                        </p>
+                      </div>
+                    )}
+
                     <button type="submit" className="btn btn-primary py-2 text-sm flex items-center gap-1.5">
                       <Save className="w-4 h-4" /> Save Connection Configuration
                     </button>
@@ -2011,6 +2448,63 @@ export default function App() {
 
           </div>
 
+        </div>
+      )}
+
+      {/* One-time GSTIN Entry Modal */}
+      {showGstinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 no-print">
+          <div className="w-full max-w-sm glass-panel p-6 shadow-2xl animate-fade-in bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-4">
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-500 dark:text-indigo-400 mx-auto mb-3">
+                <Database className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Setup Business GSTIN</h3>
+              <p className="text-[11px] text-slate-400 font-medium mt-1">
+                Please enter the GSTIN for SANMATI SALES. This is a one-time setup saved securely in the database.
+              </p>
+            </div>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (gstinInput.trim().length !== 15) {
+                showStatus("GSTIN must be exactly 15 characters!", "danger");
+                return;
+              }
+              setIsSavingGstin(true);
+              try {
+                await api.saveCompanyGstin(gstinInput.trim().toUpperCase());
+                setCompanyGstin(gstinInput.trim().toUpperCase());
+                setShowGstinModal(false);
+                showStatus("Company GSTIN saved successfully!");
+              } catch (err) {
+                showStatus(err.message, "danger");
+              } finally {
+                setIsSavingGstin(false);
+              }
+            }} className="space-y-4">
+              <div className="form-group mb-0">
+                <label className="form-label font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1.5">GSTIN Number</label>
+                <input 
+                  type="text"
+                  className="form-input font-mono uppercase text-center text-sm py-2 tracking-widest font-black"
+                  placeholder="27GHEPP3279P1ZE"
+                  maxLength={15}
+                  value={gstinInput}
+                  onChange={e => setGstinInput(e.target.value.toUpperCase())}
+                  required
+                />
+              </div>
+              <button 
+                type="submit" 
+                disabled={isSavingGstin}
+                className="w-full btn btn-primary py-2 flex items-center justify-center gap-1.5 text-xs font-bold"
+              >
+                {isSavingGstin ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>Save GSTIN Configuration</span>
+              </button>
+            </form>
+          </div>
         </div>
       )}
 
