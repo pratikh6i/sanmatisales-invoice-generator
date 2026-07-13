@@ -235,7 +235,8 @@ function saveProductRow(sheet, product) {
     }
   }
   
-  var rowValues = [product.name, product.hsn, product.unit, product.rate, product.gstRate];
+  var stockQty = (product.stockQty !== undefined && product.stockQty !== '') ? parseFloat(product.stockQty) : '';
+  var rowValues = [product.name, product.hsn || '', product.unit || 'Pcs', product.rate || 0, product.gstRate || 0, isNaN(stockQty) ? '' : stockQty];
   if (foundIndex > -1) {
     sheet.getRange(foundIndex, 1, 1, rowValues.length).setValues([rowValues]);
   } else {

@@ -148,7 +148,7 @@ export default function App() {
 
   // Whitelist/Settings States
   const [newWhitelistEmail, setNewWhitelistEmail] = useState('');
-  const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0 }); // Default GST is 0%
+  const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0, stockQty: '' }); // Default GST is 0%
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', address: '', gstin: '', whatsapp: '', state: 'Maharashtra', stateCode: '27' });
 
   const latestInvoiceNo = useMemo(() => {
@@ -560,6 +560,29 @@ export default function App() {
       const res = await api.saveInvoice(payload);
       if (res.success) {
         showStatus(`Invoice #${payload.invoiceNo} saved successfully!`);
+
+        // Deduct stock quantities for each invoice item matched by product name
+        const updatedProducts = [...products];
+        const stockUpdates = [];
+        for (const item of validItems) {
+          const prodIdx = updatedProducts.findIndex(
+            p => p.name.trim().toLowerCase() === item.description.trim().toLowerCase()
+          );
+          if (prodIdx !== -1) {
+            const prod = updatedProducts[prodIdx];
+            const currentStock = parseFloat(prod.stockQty);
+            if (!isNaN(currentStock)) {
+              const newStock = Math.max(0, currentStock - parseFloat(item.qty || 0));
+              updatedProducts[prodIdx] = { ...prod, stockQty: newStock };
+              stockUpdates.push(api.saveProduct(updatedProducts[prodIdx]));
+            }
+          }
+        }
+        if (stockUpdates.length > 0) {
+          await Promise.all(stockUpdates);
+          setProducts(updatedProducts);
+        }
+
         // Hold the current state (do not clear the form)
         loadAllData();
         return true;
@@ -624,7 +647,7 @@ export default function App() {
       const res = await api.saveProduct(newProductForm);
       if (res.success) {
         showStatus(`Product ${newProductForm.name} saved!`);
-        setNewProductForm({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0 }); // Reset with default 0% GST
+        setNewProductForm({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0, stockQty: '' }); // Reset with default 0% GST
         loadAllData();
       }
     } catch (err) {
@@ -862,7 +885,7 @@ export default function App() {
       showStatus('No products to export!', 'danger');
       return;
     }
-    const headers = ['Product Name', 'HSN Code', 'Unit', 'Default Rate (₹)', 'GST Rate (%)'];
+    const headers = ['Product Name', 'HSN Code', 'Unit', 'Default Rate (₹)', 'GST Rate (%)', 'Stock Qty'];
     let csvContent = '\uFEFF';
     csvContent += headers.join(',') + '\n';
     products.forEach(p => {
@@ -871,7 +894,8 @@ export default function App() {
         p.hsn || '',
         p.unit || 'Pcs',
         p.rate || 0,
-        p.gstRate || 0
+        p.gstRate || 0,
+        p.stockQty !== undefined && p.stockQty !== '' ? p.stockQty : ''
       ].map(val => `"${val.toString().replace(/"/g, '""')}"`);
       csvContent += row.join(',') + '\n';
     });
@@ -2437,6 +2461,18 @@ export default function App() {
                         </select>
                       </div>
                     </div>
+                    <div className="form-group">
+                      <label className="form-label">Opening Stock Qty <span className="text-slate-400 font-normal text-[10px]">(optional — leave blank if tracking not needed)</span></label>
+                      <input 
+                        type="number"
+                        step="any"
+                        min="0"
+                        className="form-input"
+                        placeholder="e.g. 500"
+                        value={newProductForm.stockQty}
+                        onChange={e => setNewProductForm({...newProductForm, stockQty: e.target.value})}
+                      />
+                    </div>
                     <button type="submit" className="w-full btn btn-primary py-2 text-sm flex items-center justify-center gap-1">
                       <PlusCircle className="w-4 h-4" /> Save to Database
                     </button>
@@ -2485,13 +2521,13 @@ export default function App() {
                     <table className="edit-table w-full text-xs">
                       <thead>
                         <tr>
-                          <th style={{ width: '35%' }}>Product Name</th>
-                          <th style={{ width: '15%' }} className="text-center">HSN</th>
-                          <th style={{ width: '12%' }} className="text-center">Unit</th>
-                          <th style={{ width: '15%' }} className="text-right">Rate (₹)</th>
-                          <th style={{ width: '12%' }} className="text-center">GST</th>
-                          <th style={{ width: '8%' }} className="text-center">Stock</th>
-                          <th style={{ width: '3%' }} className="text-center">Del</th>
+                          <th style={{ width: '28%' }}>Product Name</th>
+                          <th style={{ width: '13%' }} className="text-center">HSN</th>
+                          <th style={{ width: '10%' }} className="text-center">Unit</th>
+                          <th style={{ width: '14%' }} className="text-right">Rate (₹)</th>
+                          <th style={{ width: '10%' }} className="text-center">GST</th>
+                          <th style={{ width: '17%' }} className="text-center">Stock Qty</th>
+                          <th style={{ width: '8%' }} className="text-center">Del</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2550,19 +2586,43 @@ export default function App() {
                               </select>
                             </td>
                             <td className="text-center">
-                              <button 
-                                type="button"
-                                onClick={() => handleInlineProductEdit(prod.id, 'inStock', prod.inStock === false ? true : false)}
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase transition-all flex items-center gap-1 mx-auto ${
-                                  prod.inStock !== false 
-                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200' 
-                                    : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-450 border border-rose-200'
-                                }`}
-                                title="Toggle stock status"
-                              >
-                                {prod.inStock !== false ? 'In Stock' : 'Out of Stock'}
-                              </button>
-                            </td>
+                               {/* Stock Qty — inline editable number, updates on blur */}
+                               <div className="flex flex-col items-center gap-0.5">
+                                 <input
+                                   type="number"
+                                   min="0"
+                                   step="any"
+                                   className={`w-16 text-center text-[11px] font-black rounded border py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-400 transition-all ${
+                                     prod.stockQty === '' || prod.stockQty === undefined || prod.stockQty === null
+                                       ? 'bg-slate-50 dark:bg-slate-800/50 border-dashed border-slate-300 dark:border-slate-600 text-slate-400'
+                                       : parseFloat(prod.stockQty) === 0
+                                         ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400'
+                                         : parseFloat(prod.stockQty) <= 10
+                                           ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400'
+                                           : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400'
+                                   }`}
+                                   value={prod.stockQty === undefined || prod.stockQty === null ? '' : prod.stockQty}
+                                   placeholder="—"
+                                   onChange={e => {
+                                     const val = e.target.value;
+                                     setProducts(prev => prev.map(p => p.id === prod.id ? { ...p, stockQty: val } : p));
+                                   }}
+                                   onBlur={e => {
+                                     const val = e.target.value;
+                                     handleInlineProductEdit(prod.id, 'stockQty', val === '' ? '' : parseFloat(val) || 0);
+                                   }}
+                                 />
+                                 <span className={`text-[8px] font-extrabold uppercase tracking-wider ${
+                                   prod.stockQty === '' || prod.stockQty === undefined || prod.stockQty === null ? 'text-slate-300' :
+                                   parseFloat(prod.stockQty) === 0 ? 'text-red-400' :
+                                   parseFloat(prod.stockQty) <= 10 ? 'text-amber-500' : 'text-emerald-500'
+                                 }`}>
+                                   {prod.stockQty === '' || prod.stockQty === undefined || prod.stockQty === null ? 'not set' :
+                                    parseFloat(prod.stockQty) === 0 ? 'out of stock' :
+                                    parseFloat(prod.stockQty) <= 10 ? 'low stock' : 'in stock'}
+                                 </span>
+                               </div>
+                             </td>
                             <td className="text-center">
                               <button 
                                 onClick={() => handleProductDelete(prod.id, prod.name)}
