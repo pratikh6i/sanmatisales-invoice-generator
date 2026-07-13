@@ -1494,7 +1494,7 @@ export default function App() {
                           
                           {/* Company Header Block */}
                           <div className="bill-header-logo-section">
-                             <img src={logoImg} className="w-14 h-14 rounded-full object-cover border border-slate-200" alt="Logo" />
+                             <img src={logoImg} className="w-5 h-5 rounded-full object-cover border border-slate-200" alt="Logo" />
                              <div className="bill-company-title">
                                SANMATI SALES
                              </div>
@@ -1655,7 +1655,7 @@ export default function App() {
 
                         {/* 2. Seller Details */}
                          <div className="p-3 tally-border-b bg-white text-black flex items-center gap-4">
-                           <img src={logoImg} className="w-14 h-14 rounded-full object-cover border border-slate-200 flex-shrink-0" alt="Sanmati Sales Logo" />
+                           <img src={logoImg} className="w-5 h-5 rounded-full object-cover border border-slate-200 flex-shrink-0" alt="Sanmati Sales Logo" />
                            <div className="flex-1 text-left">
                              <h1 className="tally-company-name uppercase font-black tracking-wide text-slate-900 leading-tight">SANMATI SALES</h1>
                              <p className="text-[9px] font-semibold text-slate-700 mt-1">
