@@ -119,6 +119,17 @@ export default function App() {
   // App States
   const [activeTab, setActiveTab] = useState('dashboard');
   const [invoices, setInvoices] = useState([]);
+  
+  // Custom Report Export States
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-01`;
+  });
+  const [reportEndDate, setReportEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [reportFormat, setReportFormat] = useState('csv');
+  const [selectedReportFields, setSelectedReportFields] = useState([
+    'invoiceNo', 'date', 'customerName', 'customerGstin', 'placeOfSupply', 'grandTotal'
+  ]);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [whitelist, setWhitelist] = useState([]);
@@ -679,6 +690,150 @@ export default function App() {
       }
     } catch (err) {
       showStatus(err.message, 'danger');
+    }
+  };
+
+  const handleDownloadReport = () => {
+    const start = new Date(reportStartDate);
+    const end = new Date(reportEndDate);
+    start.setHours(0,0,0,0);
+    end.setHours(23,59,59,999);
+
+    const filtered = invoices.filter(inv => {
+      const invDate = new Date(inv.date);
+      return invDate >= start && invDate <= end;
+    });
+
+    if (filtered.length === 0) {
+      showStatus('No invoices found in the selected date range!', 'danger');
+      return;
+    }
+
+    filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const allFields = {
+      invoiceNo: { label: 'Invoice No', val: inv => inv.invoiceNo },
+      date: { label: 'Date', val: inv => inv.date ? inv.date.split('-').reverse().join('/') : '' },
+      customerName: { label: 'Customer Name', val: inv => inv.customerName },
+      customerGstin: { label: 'Customer GSTIN', val: inv => inv.customerGstin || '-' },
+      placeOfSupply: { label: 'Place of Supply', val: inv => inv.placeOfSupply || '-' },
+      townCity: { label: 'Town/City', val: inv => inv.townCity || '-' },
+      taxableValue: { label: 'Taxable Value (₹)', val: inv => (inv.subTotal || 0).toFixed(2) },
+      cgst: { label: 'CGST (₹)', val: inv => (inv.cgstTotal || 0).toFixed(2) },
+      sgst: { label: 'SGST (₹)', val: inv => (inv.sgstTotal || 0).toFixed(2) },
+      igst: { label: 'IGST (₹)', val: inv => (inv.igstTotal || 0).toFixed(2) },
+      grandTotal: { label: 'Grand Total (₹)', val: inv => (inv.grandTotal || 0).toFixed(2) }
+    };
+
+    const activeHeaders = selectedReportFields.map(f => allFields[f].label);
+    
+    if (reportFormat === 'csv') {
+      let csvContent = '\uFEFF';
+      csvContent += activeHeaders.join(',') + '\n';
+
+      filtered.forEach(inv => {
+        const row = selectedReportFields.map(f => {
+          const val = allFields[f].val(inv);
+          const escaped = val.toString().replace(/"/g, '""');
+          return `"${escaped}"`;
+        });
+        csvContent += row.join(',') + '\n';
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Invoice_Report_${reportStartDate}_to_${reportEndDate}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showStatus('CSV Report downloaded successfully!');
+    } else {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        showStatus('Popup blocked! Please allow popups to download PDF reports.', 'danger');
+        return;
+      }
+
+      const tableRows = filtered.map(inv => {
+        return `<tr>
+          ${selectedReportFields.map(f => `<td>${allFields[f].val(inv)}</td>`).join('')}
+        </tr>`;
+      }).join('');
+
+      const tableHeaders = activeHeaders.map(h => `<th>${h}</th>`).join('');
+
+      const sumRow = `
+        <tr class="sum-row">
+          ${selectedReportFields.map((f, idx) => {
+            if (idx === 0) return '<td><strong>Total Summary</strong></td>';
+            if (['taxableValue', 'cgst', 'sgst', 'igst', 'grandTotal'].includes(f)) {
+              const sum = filtered.reduce((acc, inv) => {
+                const map = {
+                  taxableValue: inv.subTotal,
+                  cgst: inv.cgstTotal,
+                  sgst: inv.sgstTotal,
+                  igst: inv.igstTotal,
+                  grandTotal: inv.grandTotal
+                };
+                return acc + (map[f] || 0);
+              }, 0);
+              return `<td><strong>₹${sum.toFixed(2)}</strong></td>`;
+            }
+            return '<td>-</td>';
+          }).join('')}
+        </tr>
+      `;
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Invoice History Report (${reportStartDate} to ${reportEndDate})</title>
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; color: #333; }
+              .header { text-align: center; margin-bottom: 30px; }
+              .header h1 { margin: 0; font-size: 24px; text-transform: uppercase; color: #1e293b; }
+              .header p { margin: 5px 0 0 0; font-size: 13px; color: #64748b; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+              th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+              th { background-color: #f1f5f9; font-weight: bold; color: #334155; }
+              tr:nth-child(even) { background-color: #f8fafc; }
+              .sum-row { background-color: #e2e8f0 !important; font-weight: bold; }
+              @media print {
+                body { padding: 0; }
+                th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                .sum-row { background-color: #e2e8f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>SANMATI SALES</h1>
+              <p>Invoice History Report</p>
+              <p><strong>Period:</strong> ${reportStartDate.split('-').reverse().join('/')} to ${reportEndDate.split('-').reverse().join('/')}</p>
+              <p><strong>Total Invoices:</strong> ${filtered.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>${tableHeaders}</tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+                ${sumRow}
+              </tbody>
+            </table>
+            <script>
+              window.onload = function() {
+                window.print();
+                setTimeout(function() { window.close(); }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
   };
 
@@ -1897,6 +2052,107 @@ export default function App() {
                   >
                     <RefreshCw className="w-4 h-4 text-slate-500" />
                   </button>
+                </div>
+
+                {/* Custom Report Builder Card */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-850 space-y-4">
+                  <div className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Download className="w-4 h-4 text-indigo-500" />
+                    <span>Generate Custom Invoice History Report</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Start Date */}
+                    <div className="form-group mb-0">
+                      <label className="form-label">Start Date</label>
+                      <input 
+                        type="date"
+                        value={reportStartDate}
+                        onChange={e => setReportStartDate(e.target.value)}
+                        className="form-input py-1.5 text-xs font-semibold"
+                      />
+                    </div>
+
+                    {/* End Date */}
+                    <div className="form-group mb-0">
+                      <label className="form-label">End Date</label>
+                      <input 
+                        type="date"
+                        value={reportEndDate}
+                        onChange={e => setReportEndDate(e.target.value)}
+                        className="form-input py-1.5 text-xs font-semibold"
+                      />
+                    </div>
+
+                    {/* Format Selector */}
+                    <div className="form-group mb-0">
+                      <label className="form-label">Export Format</label>
+                      <div className="flex bg-slate-100 dark:bg-slate-700/50 p-0.5 rounded-lg text-xs font-bold w-full h-[36px] mt-1">
+                        {['csv', 'pdf'].map(format => (
+                          <button 
+                            type="button"
+                            key={format}
+                            onClick={() => setReportFormat(format)}
+                            className={`flex-1 rounded-md uppercase transition-all ${reportFormat === format ? 'bg-white dark:bg-slate-600 shadow text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
+                          >
+                            {format}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Download Button */}
+                    <div className="flex items-end">
+                      <button
+                        type="button"
+                        onClick={handleDownloadReport}
+                        className="w-full btn btn-primary py-2 text-xs flex items-center justify-center gap-1 h-[36px] shadow-md"
+                      >
+                        <Download className="w-4 h-4" /> Download Report
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Checklist of Columns/Fields */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Select Fields to Include:</label>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {[
+                        { id: 'invoiceNo', label: 'Invoice No' },
+                        { id: 'date', label: 'Date' },
+                        { id: 'customerName', label: 'Customer Name' },
+                        { id: 'customerGstin', label: 'Customer GSTIN' },
+                        { id: 'placeOfSupply', label: 'Place of Supply' },
+                        { id: 'townCity', label: 'Town/City' },
+                        { id: 'taxableValue', label: 'Taxable Value' },
+                        { id: 'cgst', label: 'CGST' },
+                        { id: 'sgst', label: 'SGST' },
+                        { id: 'igst', label: 'IGST' },
+                        { id: 'grandTotal', label: 'Grand Total' }
+                      ].map(field => {
+                        const isChecked = selectedReportFields.includes(field.id);
+                        return (
+                          <label key={field.id} className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer select-none">
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  if (selectedReportFields.length > 1) {
+                                    setSelectedReportFields(prev => prev.filter(f => f !== field.id));
+                                  }
+                                } else {
+                                  setSelectedReportFields(prev => [...prev, field.id]);
+                                }
+                              }}
+                              className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-slate-350"
+                            />
+                            <span className="text-slate-600 dark:text-slate-300">{field.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto">
