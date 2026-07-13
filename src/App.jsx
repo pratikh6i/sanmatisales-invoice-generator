@@ -2440,8 +2440,18 @@ export default function App() {
 
                 {/* List of products */}
                 <div className="lg:col-span-2 glass-panel p-6 space-y-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
-                    <h2 className="text-base font-bold">Autocomplete Product Catalog</h2>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-2 border-b border-slate-100 dark:border-slate-800 w-full">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold">Autocomplete Product Catalog</h2>
+                      <button 
+                        type="button"
+                        onClick={handleDownloadProductsCSV}
+                        className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+                        title="Download Products CSV"
+                      >
+                        <Download className="w-3.5 h-3.5" /> CSV
+                      </button>
+                    </div>
                     
                     {/* Catalog Search Bar */}
                     <div className="relative w-full sm:w-64">
