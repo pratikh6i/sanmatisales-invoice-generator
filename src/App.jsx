@@ -827,9 +827,7 @@ export default function App() {
       {/* Header (Hidden on Print) */}
       <header className="app-header glass-panel no-print">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">
-            S
-          </div>
+          <img src="/sanmatisales-logo.jpeg" className="w-10 h-10 rounded-full shadow-md object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
           <div>
             <h1 className="text-xl font-bold tracking-tight">Sanmati Sales</h1>
             <p className="text-xs text-slate-400 font-medium">Professional Bill Generator</p>
@@ -890,9 +888,7 @@ export default function App() {
         /* Session Restoration Loading Spinner */
         <div className="flex-1 flex items-center justify-center p-6 no-print">
           <div className="text-center animate-fade-in">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-3xl shadow-xl mx-auto mb-6 animate-pulse">
-              S
-            </div>
+            <img src="/sanmatisales-logo.jpeg" className="w-16 h-16 rounded-full shadow-xl mx-auto mb-6 animate-pulse object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
             <h2 className="text-lg font-bold tracking-tight mb-2">Restoring Session...</h2>
             <p className="text-slate-400 text-sm flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin" /> Checking authentication
@@ -903,9 +899,7 @@ export default function App() {
         /* Login Screen if unauthorized */
         <div className="flex-1 flex items-center justify-center p-6 no-print">
           <div className="w-full max-w-md glass-panel p-8 animate-fade-in text-center">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-3xl shadow-xl mx-auto mb-6">
-              S
-            </div>
+            <img src="/sanmatisales-logo.jpeg" className="w-16 h-16 rounded-full shadow-xl mx-auto mb-6 object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
             <h2 className="text-2xl font-bold tracking-tight mb-2">Sanmati Sales Billing</h2>
             <p className="text-slate-500 text-sm mb-6">
               Authorized personnel only. Please sign in with Google to access the invoice engine.
@@ -1499,15 +1493,11 @@ export default function App() {
                           
                           {/* Company Header Block */}
                           <div className="bill-header-logo-section">
-                            {/* Logo SVG matching the screenshot's SS orange circular logo */}
-                            <svg className="w-12 h-12 mb-1" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <circle cx="50" cy="50" r="45" fill="#f97316" />
-                              <path d="M25 45 C25 30, 75 30, 75 45 C75 55, 25 55, 25 65 C25 75, 75 75, 75 60" stroke="white" strokeWidth="10" strokeLinecap="round" fill="none" />
-                            </svg>
-                            <div className="bill-company-title">
-                              SANMATI SALES
-                            </div>
-                          </div>
+                             <img src="/sanmatisales-logo.jpeg" className="w-14 h-14 rounded-full object-cover border border-slate-200" alt="Logo" />
+                             <div className="bill-company-title">
+                               SANMATI SALES
+                             </div>
+                           </div>
 
                           {/* Customer Information Block */}
                           <div className="bill-meta-grid">
@@ -1663,23 +1653,23 @@ export default function App() {
                         </div>
 
                         {/* 2. Seller Details */}
-                        <div className="p-3 text-center tally-border-b bg-white text-black">
-                          <h1 className="tally-company-name uppercase font-black tracking-wide text-slate-900">SANMATI SALES</h1>
-                          <p className="text-[9px] font-semibold text-slate-700 mt-1">
-                            Rutvik Patil Udyog Samuh, Khangond Galli, Kumbhoj, 416 111
-                          </p>
-                          <p className="text-[9px] font-semibold text-slate-700">
-                            Tal- Hatkalangle, Dist.- Kolhapur
-                          </p>
-                          <div className="flex justify-center gap-4 text-[9px] text-slate-700 font-semibold mt-1">
-                            <span><strong>Mobile No.:</strong> 85305 15022</span>
-                            <span><strong>Email:</strong> sanmatisales9027@gmail.com</span>
-                          </div>
-                          <div className="flex justify-center gap-4 text-[9px] text-slate-700 font-semibold mt-0.5">
-                            <span><strong>PAN:</strong> GHEPP3279P</span>
-                            <span><strong>GSTIN:</strong> {COMPANY_GSTIN}</span>
-                          </div>
-                        </div>
+                         <div className="p-3 tally-border-b bg-white text-black flex items-center gap-4">
+                           <img src="/sanmatisales-logo.jpeg" className="w-14 h-14 rounded-full object-cover border border-slate-200 flex-shrink-0" alt="Sanmati Sales Logo" />
+                           <div className="flex-1 text-left">
+                             <h1 className="tally-company-name uppercase font-black tracking-wide text-slate-900 leading-tight">SANMATI SALES</h1>
+                             <p className="text-[9px] font-semibold text-slate-700 mt-1">
+                               Rutvik Patil Udyog Samuh, Khangond Galli, Kumbhoj, 416 111 | Tal- Hatkalangle, Dist.- Kolhapur
+                             </p>
+                             <div className="flex gap-4 text-[9px] text-slate-700 font-semibold mt-0.5">
+                               <span><strong>Mobile No.:</strong> 85305 15022</span>
+                               <span><strong>Email:</strong> sanmatisales9027@gmail.com</span>
+                             </div>
+                             <div className="flex gap-4 text-[9px] text-slate-700 font-semibold mt-0.5">
+                               <span><strong>PAN:</strong> GHEPP3279P</span>
+                               <span><strong>GSTIN:</strong> {COMPANY_GSTIN}</span>
+                             </div>
+                           </div>
+                         </div>
 
                         {/* 3. Reference and Party Grid */}
                         <div className="grid grid-cols-2 tally-border-b bg-white text-black">
