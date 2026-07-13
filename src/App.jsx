@@ -130,6 +130,7 @@ export default function App() {
   const [selectedReportFields, setSelectedReportFields] = useState([
     'invoiceNo', 'date', 'customerName', 'customerGstin', 'placeOfSupply', 'grandTotal'
   ]);
+  const [customNDays, setCustomNDays] = useState(7);
   const [products, setProducts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [whitelist, setWhitelist] = useState([]);
@@ -693,6 +694,25 @@ export default function App() {
     }
   };
 
+  const applyReportPreset = (days) => {
+    const today = new Date();
+    const endStr = today.toISOString().split('T')[0];
+    setReportEndDate(endStr);
+    
+    if (days === 'all') {
+      if (invoices.length > 0) {
+        const sorted = [...invoices].sort((a, b) => new Date(a.date) - new Date(b.date));
+        setReportStartDate(sorted[0].date || '2000-01-01');
+      } else {
+        setReportStartDate('2000-01-01');
+      }
+    } else {
+      const start = new Date();
+      start.setDate(today.getDate() - days);
+      setReportStartDate(start.toISOString().split('T')[0]);
+    }
+  };
+
   const handleDownloadReport = () => {
     const start = new Date(reportStartDate);
     const end = new Date(reportEndDate);
@@ -835,6 +855,69 @@ export default function App() {
       `);
       printWindow.document.close();
     }
+  };
+
+  const handleDownloadProductsCSV = () => {
+    if (products.length === 0) {
+      showStatus('No products to export!', 'danger');
+      return;
+    }
+    const headers = ['Product Name', 'HSN Code', 'Unit', 'Default Rate (₹)', 'GST Rate (%)'];
+    let csvContent = '\uFEFF';
+    csvContent += headers.join(',') + '\n';
+    products.forEach(p => {
+      const row = [
+        p.name,
+        p.hsn || '',
+        p.unit || 'Pcs',
+        p.rate || 0,
+        p.gstRate || 0
+      ].map(val => `"${val.toString().replace(/"/g, '""')}"`);
+      csvContent += row.join(',') + '\n';
+    });
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'Sanmati_Sales_Products_Catalog.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showStatus('Products catalog downloaded successfully!');
+  };
+
+  const handleDownloadCustomersCSV = () => {
+    if (customers.length === 0) {
+      showStatus('No customers to export!', 'danger');
+      return;
+    }
+    const headers = ['Customer Name', 'WhatsApp Number', 'GSTIN', 'Town/City', 'Town/City Code', 'Billing Address'];
+    let csvContent = '\uFEFF';
+    csvContent += headers.join(',') + '\n';
+    customers.forEach(c => {
+      const row = [
+        c.name,
+        c.whatsapp || '',
+        c.gstin || '',
+        c.state || '',
+        c.stateCode || '',
+        c.address || ''
+      ].map(val => `"${val.toString().replace(/"/g, '""')}"`);
+      csvContent += row.join(',') + '\n';
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'Sanmati_Sales_Customers_Database.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showStatus('Customer database downloaded successfully!');
   };
 
   const handleAddWhitelist = async (e) => {
@@ -2055,45 +2138,45 @@ export default function App() {
                 </div>
 
                 {/* Custom Report Builder Card */}
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-850 space-y-4">
-                  <div className="text-xs font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Download className="w-4 h-4 text-indigo-500" />
+                <div className="p-5 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-slate-150 dark:border-slate-800 space-y-4 shadow-sm">
+                  <div className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-2">
+                    <Download className="w-4 h-4" />
                     <span>Generate Custom Invoice History Report</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Start Date */}
                     <div className="form-group mb-0">
-                      <label className="form-label">Start Date</label>
+                      <label className="form-label text-slate-500 dark:text-slate-400 font-bold text-[11px] mb-1 block">Start Date</label>
                       <input 
                         type="date"
                         value={reportStartDate}
                         onChange={e => setReportStartDate(e.target.value)}
-                        className="form-input py-1.5 text-xs font-semibold"
+                        className="form-input py-2 text-xs font-semibold rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
                       />
                     </div>
 
                     {/* End Date */}
                     <div className="form-group mb-0">
-                      <label className="form-label">End Date</label>
+                      <label className="form-label text-slate-500 dark:text-slate-400 font-bold text-[11px] mb-1 block">End Date</label>
                       <input 
                         type="date"
                         value={reportEndDate}
                         onChange={e => setReportEndDate(e.target.value)}
-                        className="form-input py-1.5 text-xs font-semibold"
+                        className="form-input py-2 text-xs font-semibold rounded-lg border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm"
                       />
                     </div>
 
                     {/* Format Selector */}
                     <div className="form-group mb-0">
-                      <label className="form-label">Export Format</label>
-                      <div className="flex bg-slate-100 dark:bg-slate-700/50 p-0.5 rounded-lg text-xs font-bold w-full h-[36px] mt-1">
+                      <label className="form-label text-slate-500 dark:text-slate-400 font-bold text-[11px] mb-1 block">Export Format</label>
+                      <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-lg text-xs font-bold w-full h-[38px] border border-slate-200 dark:border-slate-700/50 shadow-sm">
                         {['csv', 'pdf'].map(format => (
                           <button 
                             type="button"
                             key={format}
                             onClick={() => setReportFormat(format)}
-                            className={`flex-1 rounded-md uppercase transition-all ${reportFormat === format ? 'bg-white dark:bg-slate-600 shadow text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
+                            className={`flex-1 rounded-md uppercase transition-all flex items-center justify-center ${reportFormat === format ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400 font-black' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}
                           >
                             {format}
                           </button>
@@ -2106,17 +2189,62 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleDownloadReport}
-                        className="w-full btn btn-primary py-2 text-xs flex items-center justify-center gap-1 h-[36px] shadow-md"
+                        className="w-full btn btn-primary py-2 text-xs flex items-center justify-center gap-1.5 h-[38px] shadow-md font-bold rounded-lg transition-transform hover:scale-[1.01]"
                       >
                         <Download className="w-4 h-4" /> Download Report
                       </button>
                     </div>
                   </div>
 
+                  {/* Quick Preset Buttons */}
+                  <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mr-1">Quick Presets:</span>
+                    <button 
+                      type="button" 
+                      onClick={() => applyReportPreset('all')} 
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-[10px] font-extrabold transition-all border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer"
+                    >
+                      All Time
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => applyReportPreset(30)} 
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-[10px] font-extrabold transition-all border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer"
+                    >
+                      Last 30 Days
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => applyReportPreset(10)} 
+                      className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-[10px] font-extrabold transition-all border border-slate-200 dark:border-slate-700/50 shadow-sm cursor-pointer"
+                    >
+                      Last 10 Days
+                    </button>
+                    
+                    {/* Custom N Days Input */}
+                    <div className="flex items-center bg-slate-150 dark:bg-slate-800/80 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 ml-auto md:ml-0 shadow-sm">
+                      <input 
+                        type="number" 
+                        min="1" 
+                        max="365"
+                        value={customNDays} 
+                        onChange={e => setCustomNDays(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-12 bg-transparent text-center border-none focus:ring-0 text-[10px] font-extrabold text-slate-700 dark:text-slate-200 p-0"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => applyReportPreset(customNDays)} 
+                        className="px-2.5 py-1 rounded-md bg-white dark:bg-slate-700 shadow-sm text-slate-700 dark:text-slate-200 text-[10px] font-black hover:text-indigo-600 dark:hover:text-indigo-400 transition-all border border-slate-100 dark:border-slate-600/30"
+                      >
+                        Last N Days
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Checklist of Columns/Fields */}
-                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                    <label className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Select Fields to Include:</label>
-                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                  <div className="space-y-2 pt-3 border-t border-slate-200/50 dark:border-slate-800/50">
+                    <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">Select Fields to Include:</label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-2 pt-0.5">
                       {[
                         { id: 'invoiceNo', label: 'Invoice No' },
                         { id: 'date', label: 'Date' },
@@ -2132,7 +2260,7 @@ export default function App() {
                       ].map(field => {
                         const isChecked = selectedReportFields.includes(field.id);
                         return (
-                          <label key={field.id} className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer select-none">
+                          <label key={field.id} className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-350 cursor-pointer select-none hover:text-slate-800 dark:hover:text-slate-100 transition-colors">
                             <input 
                               type="checkbox"
                               checked={isChecked}
@@ -2145,9 +2273,9 @@ export default function App() {
                                   setSelectedReportFields(prev => [...prev, field.id]);
                                 }
                               }}
-                              className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 border-slate-350"
+                              className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 border-slate-300 dark:border-slate-650 bg-white dark:bg-slate-800 transition-all cursor-pointer"
                             />
-                            <span className="text-slate-600 dark:text-slate-300">{field.label}</span>
+                            <span>{field.label}</span>
                           </label>
                         );
                       })}
@@ -2517,7 +2645,17 @@ export default function App() {
 
                 {/* List of customers */}
                 <div className="lg:col-span-2 glass-panel p-6 space-y-4">
-                  <h2 className="text-base font-bold pb-2 border-b border-slate-100 dark:border-slate-800">Autocomplete Customer Database</h2>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <h2 className="text-base font-bold">Autocomplete Customer Database</h2>
+                    <button 
+                      type="button"
+                      onClick={handleDownloadCustomersCSV}
+                      className="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-1"
+                      title="Download Customers CSV"
+                    >
+                      <Download className="w-3.5 h-3.5" /> CSV
+                    </button>
+                  </div>
                   <div className="overflow-x-auto max-h-[500px]">
                     <table className="edit-table">
                       <thead>
