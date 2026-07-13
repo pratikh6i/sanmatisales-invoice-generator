@@ -155,6 +155,7 @@ export const api = {
       unit: product.unit ? product.unit.trim() : 'Pcs',
       rate: parseFloat(product.rate) || 0,
       gstRate: parseInt(product.gstRate, 10) || 0,
+      stockQty: product.stockQty !== undefined && product.stockQty !== '' ? parseFloat(product.stockQty) : '',
       inStock: product.inStock !== undefined ? product.inStock : true,
       updatedAt: new Date().toISOString()
     };
