@@ -138,11 +138,6 @@ export default function App() {
   const [newWhitelistEmail, setNewWhitelistEmail] = useState('');
   const [newProductForm, setNewProductForm] = useState({ name: '', hsn: '', unit: 'Pcs', rate: 0, gstRate: 0 }); // Default GST is 0%
   const [newCustomerForm, setNewCustomerForm] = useState({ name: '', address: '', gstin: '', whatsapp: '', state: 'Maharashtra', stateCode: '27' });
-  const [logoSize, setLogoSize] = useState(40);
-  const [logoMarginTop, setLogoMarginTop] = useState(0);
-  const [logoMarginBottom, setLogoMarginBottom] = useState(6);
-  const [billAlign, setBillAlign] = useState('center');
-  const [taxAlign, setTaxAlign] = useState('left');
 
   const latestInvoiceNo = useMemo(() => {
     if (!invoices || invoices.length === 0) return '00';
@@ -1491,95 +1486,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Logo Alignment and Size Adjuster Control Panel */}
-                  <div className="no-print p-4 mb-4 bg-indigo-50/50 dark:bg-slate-800/50 rounded-xl border border-indigo-100 dark:border-slate-700/50 space-y-3">
-                    <div className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Settings className="w-4 h-4" />
-                      <span>Logo Positioning & Size Customizer (Temporary Settings)</span>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Sliders */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold block text-slate-700 dark:text-slate-300">Logo Size: <span className="text-indigo-600 dark:text-indigo-400 font-mono">{logoSize}px</span></label>
-                        <input 
-                          type="range" 
-                          min="15" 
-                          max="120" 
-                          value={logoSize} 
-                          onChange={e => setLogoSize(Number(e.target.value))} 
-                          className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                        />
-                      </div>
 
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold block text-slate-700 dark:text-slate-300">Margin Top: <span className="text-indigo-600 dark:text-indigo-400 font-mono">{logoMarginTop}px</span></label>
-                        <input 
-                          type="range" 
-                          min="-20" 
-                          max="40" 
-                          value={logoMarginTop} 
-                          onChange={e => setLogoMarginTop(Number(e.target.value))} 
-                          className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold block text-slate-700 dark:text-slate-300">Margin Bottom: <span className="text-indigo-600 dark:text-indigo-400 font-mono">{logoMarginBottom}px</span></label>
-                        <input 
-                          type="range" 
-                          min="-20" 
-                          max="40" 
-                          value={logoMarginBottom} 
-                          onChange={e => setLogoMarginBottom(Number(e.target.value))} 
-                          className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                      {/* Alignments */}
-                      <div className="flex items-center gap-3">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Bill Template Align:</label>
-                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-0.5 rounded-lg text-xs font-bold">
-                          {['left', 'center', 'right'].map(align => (
-                            <button 
-                              key={align}
-                              onClick={() => setBillAlign(align)}
-                              className={`px-3 py-1 rounded-md capitalize transition-all ${billAlign === align ? 'bg-white dark:bg-slate-600 shadow text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
-                            >
-                              {align}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">Tax Template Align:</label>
-                        <div className="flex bg-slate-100 dark:bg-slate-700/50 p-0.5 rounded-lg text-xs font-bold">
-                          {['left', 'center', 'right'].map(align => (
-                            <button 
-                              key={align}
-                              onClick={() => setTaxAlign(align)}
-                              className={`px-3 py-1 rounded-md capitalize transition-all ${taxAlign === align ? 'bg-white dark:bg-slate-600 shadow text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}
-                            >
-                              {align}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Config string to copy */}
-                    <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                      <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                        Send this code snippet to me when you are happy with the size and position:
-                      </div>
-                      <div className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-all cursor-pointer text-center md:text-left" title="Click to select all, then copy">
-                        LOGO_CONFIG: SIZE={logoSize}px | MT={logoMarginTop}px | MB={logoMarginBottom}px | BILL_ALIGN={billAlign} | TAX_ALIGN={taxAlign}
-                      </div>
-                    </div>
-                  </div>
 
                   {/* Render exact paper template matching Excel format */}
                   <div className="bill-paper-container" ref={printRef}>
@@ -1588,14 +1495,14 @@ export default function App() {
                         <div className="bill-border-box">
                           
                           {/* Company Header Block */}
-                          <div className="bill-header-logo-section" style={{ alignItems: billAlign === 'center' ? 'center' : billAlign === 'right' ? 'flex-end' : 'flex-start' }}>
+                          <div className="bill-header-logo-section" style={{ alignItems: 'center' }}>
                              <img 
                                src={logoImg} 
                                style={{ 
-                                 width: `${logoSize}px`, 
-                                 height: `${logoSize}px`, 
-                                 marginTop: `${logoMarginTop}px`, 
-                                 marginBottom: `${logoMarginBottom}px`,
+                                 width: '50px', 
+                                 height: '50px', 
+                                 marginTop: '-14px', 
+                                 marginBottom: '-2px',
                                  objectFit: 'cover'
                                }} 
                                className="rounded-full border border-slate-200" 
@@ -1763,32 +1670,32 @@ export default function App() {
                         <div 
                           className="p-3 tally-border-b bg-white text-black flex items-center gap-4" 
                           style={{ 
-                            justifyContent: taxAlign === 'center' ? 'center' : taxAlign === 'right' ? 'flex-end' : 'flex-start',
-                            flexDirection: taxAlign === 'right' ? 'row-reverse' : 'row'
+                            justifyContent: 'flex-start',
+                            flexDirection: 'row'
                           }}
                         >
                           <img 
                             src={logoImg} 
                             style={{ 
-                              width: `${logoSize}px`, 
-                              height: `${logoSize}px`, 
-                              marginTop: `${logoMarginTop}px`, 
-                              marginBottom: `${logoMarginBottom}px`,
+                              width: '80px', 
+                              height: '80px', 
+                              marginTop: '-14px', 
+                              marginBottom: '-2px',
                               objectFit: 'cover'
                             }} 
                             className="rounded-full border border-slate-200 flex-shrink-0" 
                             alt="Sanmati Sales Logo" 
                           />
-                          <div className="flex-1 text-left" style={{ textAlign: taxAlign }}>
+                          <div className="flex-1 text-left" style={{ textAlign: 'left' }}>
                             <h1 className="tally-company-name uppercase font-black tracking-wide text-slate-900 leading-tight">SANMATI SALES</h1>
                             <p className="text-[9px] font-semibold text-slate-700 mt-1">
                               Rutvik Patil Udyog Samuh, Khangond Galli, Kumbhoj, 416 111 | Tal- Hatkalangle, Dist.- Kolhapur
                             </p>
-                            <div className="flex gap-4 text-[9px] text-slate-700 font-semibold mt-0.5" style={{ justifyContent: taxAlign === 'center' ? 'center' : taxAlign === 'right' ? 'flex-end' : 'flex-start' }}>
+                            <div className="flex gap-4 text-[9px] text-slate-700 font-semibold mt-0.5" style={{ justifyContent: 'flex-start' }}>
                               <span><strong>Mobile No.:</strong> 85305 15022</span>
                               <span><strong>Email:</strong> sanmatisales9027@gmail.com</span>
                             </div>
-                            <div className="flex gap-4 text-[9px] text-slate-700 font-semibold mt-0.5" style={{ justifyContent: taxAlign === 'center' ? 'center' : taxAlign === 'right' ? 'flex-end' : 'flex-start' }}>
+                            <div className="flex gap-4 text-[9px] text-slate-700 font-semibold mt-0.5" style={{ justifyContent: 'flex-start' }}>
                               <span><strong>PAN:</strong> GHEPP3279P</span>
                               <span><strong>GSTIN:</strong> {COMPANY_GSTIN}</span>
                             </div>
