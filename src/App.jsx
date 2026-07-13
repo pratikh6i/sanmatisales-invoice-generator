@@ -8,6 +8,7 @@ import {
 import { api } from './api';
 import { auth } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import logoImg from './sanmatisales-logo.jpeg';
 
 // Production environment detector
 const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
@@ -827,7 +828,7 @@ export default function App() {
       {/* Header (Hidden on Print) */}
       <header className="app-header glass-panel no-print">
         <div className="flex items-center gap-3">
-          <img src="/sanmatisales-logo.jpeg" className="w-10 h-10 rounded-full shadow-md object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
+          <img src={logoImg} className="w-10 h-10 rounded-full shadow-md object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
           <div>
             <h1 className="text-xl font-bold tracking-tight">Sanmati Sales</h1>
             <p className="text-xs text-slate-400 font-medium">Professional Bill Generator</p>
@@ -888,7 +889,7 @@ export default function App() {
         /* Session Restoration Loading Spinner */
         <div className="flex-1 flex items-center justify-center p-6 no-print">
           <div className="text-center animate-fade-in">
-            <img src="/sanmatisales-logo.jpeg" className="w-16 h-16 rounded-full shadow-xl mx-auto mb-6 animate-pulse object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
+            <img src={logoImg} className="w-16 h-16 rounded-full shadow-xl mx-auto mb-6 animate-pulse object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
             <h2 className="text-lg font-bold tracking-tight mb-2">Restoring Session...</h2>
             <p className="text-slate-400 text-sm flex items-center justify-center gap-2">
               <RefreshCw className="w-4 h-4 animate-spin" /> Checking authentication
@@ -899,7 +900,7 @@ export default function App() {
         /* Login Screen if unauthorized */
         <div className="flex-1 flex items-center justify-center p-6 no-print">
           <div className="w-full max-w-md glass-panel p-8 animate-fade-in text-center">
-            <img src="/sanmatisales-logo.jpeg" className="w-16 h-16 rounded-full shadow-xl mx-auto mb-6 object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
+            <img src={logoImg} className="w-16 h-16 rounded-full shadow-xl mx-auto mb-6 object-cover border border-slate-200 dark:border-slate-800" alt="Logo" />
             <h2 className="text-2xl font-bold tracking-tight mb-2">Sanmati Sales Billing</h2>
             <p className="text-slate-500 text-sm mb-6">
               Authorized personnel only. Please sign in with Google to access the invoice engine.
@@ -1493,7 +1494,7 @@ export default function App() {
                           
                           {/* Company Header Block */}
                           <div className="bill-header-logo-section">
-                             <img src="/sanmatisales-logo.jpeg" className="w-14 h-14 rounded-full object-cover border border-slate-200" alt="Logo" />
+                             <img src={logoImg} className="w-14 h-14 rounded-full object-cover border border-slate-200" alt="Logo" />
                              <div className="bill-company-title">
                                SANMATI SALES
                              </div>
@@ -1654,7 +1655,7 @@ export default function App() {
 
                         {/* 2. Seller Details */}
                          <div className="p-3 tally-border-b bg-white text-black flex items-center gap-4">
-                           <img src="/sanmatisales-logo.jpeg" className="w-14 h-14 rounded-full object-cover border border-slate-200 flex-shrink-0" alt="Sanmati Sales Logo" />
+                           <img src={logoImg} className="w-14 h-14 rounded-full object-cover border border-slate-200 flex-shrink-0" alt="Sanmati Sales Logo" />
                            <div className="flex-1 text-left">
                              <h1 className="tally-company-name uppercase font-black tracking-wide text-slate-900 leading-tight">SANMATI SALES</h1>
                              <p className="text-[9px] font-semibold text-slate-700 mt-1">
