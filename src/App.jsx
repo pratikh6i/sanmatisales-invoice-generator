@@ -668,6 +668,19 @@ export default function App() {
     }
   };
 
+  const handleCustomerDelete = async (customerId, customerName) => {
+    if (!window.confirm(`Are you sure you want to delete "${customerName}" from the customer database?`)) return;
+    try {
+      const res = await api.deleteCustomer(customerId);
+      if (res.success) {
+        showStatus(`Customer "${customerName}" deleted.`);
+        setCustomers(prev => prev.filter(c => c.id !== customerId));
+      }
+    } catch (err) {
+      showStatus(err.message, 'danger');
+    }
+  };
+
   const handleAddWhitelist = async (e) => {
     e.preventDefault();
     if (!newWhitelistEmail.trim()) return;
@@ -2237,16 +2250,27 @@ export default function App() {
                           <th>GSTIN</th>
                           <th>Place of Supply</th>
                           <th>Address</th>
+                          <th className="text-center w-[80px]">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {customers.map(cust => (
-                          <tr key={cust.name}>
+                          <tr key={cust.id || cust.name}>
                             <td className="font-semibold">{cust.name}</td>
                             <td className="font-mono text-xs">{cust.whatsapp || '-'}</td>
                             <td className="font-mono text-xs">{cust.gstin || 'Unregistered'}</td>
                             <td><span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs font-semibold text-slate-600 dark:text-slate-400">{cust.state} ({cust.stateCode})</span></td>
                             <td className="text-xs max-w-xs truncate" title={cust.address}>{cust.address}</td>
+                            <td className="text-center">
+                               <button
+                                 type="button"
+                                 onClick={() => handleCustomerDelete(cust.id, cust.name)}
+                                 className="p-1 text-rose-500 hover:bg-rose-50 hover:dark:bg-rose-950/30 rounded transition-colors inline-flex items-center justify-center"
+                                 title="Delete Customer"
+                               >
+                                 <Trash2 className="w-4 h-4" />
+                               </button>
+                             </td>
                           </tr>
                         ))}
                       </tbody>
