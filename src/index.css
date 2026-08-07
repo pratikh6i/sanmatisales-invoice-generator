@@ -671,28 +671,43 @@ nav button:hover {
 }
 
 /* PRINT MEDIA OVERRIDES - CRITICAL */
+@page {
+  margin: 0;
+}
+
 @media print {
-  /* Force browsers to print backgrounds and background colors (grey fills) */
+  /* Force browsers to print backgrounds and background colors */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
+  /* Collapse all body content so nothing below the invoice generates a blank page */
+  html, body {
+    height: auto !important;
+    overflow: hidden !important;
+    background-color: white !important;
+    color: black !important;
+    font-size: 12pt;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   /* Hide all dashboard/edit chrome and UI elements */
   body * {
     visibility: hidden;
   }
-  
+
   /* Make only the bill paper container visible */
   .bill-paper-container,
   .bill-paper-container * {
     visibility: visible;
   }
-  
-  /* Position the print container at the top left of the page */
+
+  /* Position the print container at top-left; fixed height prevents blank page overflow */
   .bill-paper-container {
-    position: absolute;
+    position: fixed;
     left: 0;
     top: 0;
     width: 100% !important;
@@ -701,8 +716,10 @@ nav button:hover {
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
+    overflow: hidden !important;
+    display: block !important;
   }
-  
+
   .bill-paper {
     padding: 0 !important;
     margin: 0 !important;
@@ -710,17 +727,52 @@ nav button:hover {
     max-width: 100% !important;
   }
 
-  body {
-    background-color: white !important;
-    color: black !important;
-    font-size: 12pt;
-  }
-  
   /* Ensure page breaks don't cut rows */
   .bill-items-table tr {
     page-break-inside: avoid;
   }
+
+  /* ---- 2-up LANDSCAPE BILL PRINT ---- */
+  /* When printing 2-up, force landscape page size */
+  .bill-paper-container.two-up {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+
+  /* Each copy fills exactly half the landscape width */
+  .bill-paper-container.two-up .two-up-copy {
+    width: 50% !important;
+    max-width: 50% !important;
+    flex: 0 0 50% !important;
+    box-sizing: border-box !important;
+    padding: 4mm !important;
+    margin: 0 !important;
+    font-size: 9pt !important;
+  }
+
+  /* Dashed cut-line between the two copies */
+  .bill-paper-container.two-up .two-up-copy:first-child {
+    border-right: 2px dashed #999 !important;
+  }
+
+  /* In 2-up mode keep page portrait for 1-up tax invoice */
+  .bill-paper-container:not(.two-up) {
+    display: block !important;
+  }
 }
+
 
 /* ==========================================================================
    PRINT FORMAT SIZES (A4, A5, Thermal POS)
@@ -1086,8 +1138,143 @@ nav button:hover {
   box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2), 0 2px 4px -1px rgba(79, 70, 229, 0.1) !important;
 }
 
+/* ==========================================================================
+   AUTOCOMPLETE DROPDOWN POLISH
+   ========================================================================== */
 
+/* Base dropdown panel — smoother, elevated, animated */
+.autocomplete-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-top: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  border-radius: 14px;
+  box-shadow:
+    0 8px 24px -4px rgba(99, 102, 241, 0.15),
+    0 2px 8px -2px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  animation: dropdown-slide-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 
+[data-theme="dark"] .autocomplete-dropdown {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow:
+    0 8px 24px -4px rgba(0, 0, 0, 0.6),
+    0 2px 8px -2px rgba(0, 0, 0, 0.4);
+}
 
+@keyframes dropdown-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
 
+/* Dropdown header row */
+.autocomplete-dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  margin-bottom: 4px;
+}
+
+[data-theme="dark"] .autocomplete-dropdown-header {
+  border-bottom-color: rgba(51, 65, 85, 0.8);
+}
+
+.autocomplete-dropdown-title {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.autocomplete-dropdown-close {
+  font-size: 10px;
+  font-weight: 700;
+  color: #6366f1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+.autocomplete-dropdown-close:hover {
+  color: #4338ca;
+  text-decoration: underline;
+}
+
+/* Individual dropdown item buttons */
+.autocomplete-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.13s ease, color 0.13s ease;
+  line-height: 1.4;
+}
+
+.autocomplete-item:hover {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.10), rgba(99, 102, 241, 0.05));
+  color: #4338ca;
+}
+
+[data-theme="dark"] .autocomplete-item {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .autocomplete-item:hover {
+  background: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
+}
+
+/* Customer item secondary info */
+.autocomplete-item .item-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: #94a3b8;
+  margin-top: 1px;
+}
+
+/* Product item rate badge */
+.autocomplete-item .item-rate {
+  font-size: 10px;
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 4px;
+  padding: 1px 5px;
+  float: right;
+}
+
+/* Empty state */
+.autocomplete-empty {
+  text-align: center;
+  padding: 14px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+}
 

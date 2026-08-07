@@ -106,6 +106,7 @@ export default function App() {
   const [spreadsheetId, setSpreadsheetId] = useState('firestore-db');
   const [printSize, setPrintSize] = useState('a4');
   const [currentTemplate, setCurrentTemplate] = useState('bill'); // 'bill' (original) or 'tax' (Tally-style Tax Invoice)
+  const [twoUp, setTwoUp] = useState(true); // Bill default: 2-up landscape. Tax Invoice always 1-up.
 
   // Seller GSTIN Constant (Hardcoded as requested)
   const COMPANY_GSTIN = import.meta.env.VITE_COMPANY_GSTIN || '27GHEPP3279P1ZE';
@@ -971,8 +972,24 @@ export default function App() {
     }
   };
 
+  const handleNewInvoice = () => {
+    setInvoiceForm({ ...EMPTY_INVOICE, date: new Date().toISOString().split('T')[0] });
+    setIsEditing(false);
+    setActiveTab('dashboard');
+    showStatus('Ready for a new invoice!');
+  };
+
   const triggerPrint = (template = 'bill') => {
     setCurrentTemplate(template);
+    // Apply or remove 2-up class on the container before printing
+    const container = document.querySelector('.bill-paper-container');
+    if (container) {
+      if (template === 'bill' && twoUp) {
+        container.classList.add('two-up');
+      } else {
+        container.classList.remove('two-up');
+      }
+    }
     setTimeout(() => {
       window.print();
     }, 150);
@@ -1130,6 +1147,15 @@ export default function App() {
           {/* User Section */}
           {user ? (
             <div className="flex items-center gap-3 pl-3 border-l border-slate-200 dark:border-slate-800">
+              {/* + New Invoice button — always visible in header */}
+              <button
+                onClick={handleNewInvoice}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all"
+                title="Clear form and start a new invoice"
+              >
+                <FilePlus className="w-4 h-4" />
+                <span>+ New Invoice</span>
+              </button>
               <div className="text-right">
                 <p className="text-xs font-semibold text-slate-400">Logged in as</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{user.email}</p>
@@ -1302,10 +1328,10 @@ export default function App() {
                           </button>
                           {/* Auto-complete Dropdown */}
                           {customerSearchDropdown && (
-                            <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto glass-panel p-1 shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                              <div className="flex justify-between items-center px-2 py-1.5 border-b border-slate-100 dark:border-slate-800 mb-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Select Customer</span>
-                                <button onClick={() => setCustomerSearchDropdown(false)} className="text-[10px] text-indigo-500 hover:underline">Close</button>
+                            <div className="autocomplete-dropdown">
+                              <div className="autocomplete-dropdown-header">
+                                <span className="autocomplete-dropdown-title">Select Customer</span>
+                                <button onClick={() => setCustomerSearchDropdown(false)} className="autocomplete-dropdown-close">Close ✕</button>
                               </div>
                               {customers
                                 .filter(c => c.name.toLowerCase().includes(invoiceForm.customerName.toLowerCase()))
@@ -1313,14 +1339,16 @@ export default function App() {
                                   <button
                                     key={c.name}
                                     onClick={() => selectCustomer(c)}
-                                    className="w-full text-left px-2 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                                    className="autocomplete-item"
                                   >
-                                    {c.name} ({c.stateCode})
+                                    <span className="item-rate">{c.stateCode}</span>
+                                    {c.name}
+                                    {c.address && <div className="item-sub">{c.address}</div>}
                                   </button>
                                 ))
                               }
                               {customers.filter(c => c.name.toLowerCase().includes(invoiceForm.customerName.toLowerCase())).length === 0 && (
-                                <div className="text-center py-3 text-xs text-slate-400 font-medium">No customers found. Enter custom details.</div>
+                                <div className="autocomplete-empty">No customers found. Enter custom details.</div>
                               )}
                             </div>
                           )}
@@ -1479,15 +1507,15 @@ export default function App() {
 
                               {/* Product Autocomplete Dropdown */}
                               {activeProductSearchRow === idx && (
-                                <div className="absolute left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto glass-panel p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                  <div className="flex justify-between items-center px-2 py-1 border-b border-slate-100 dark:border-slate-800 mb-1">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">Select Product</span>
-                                    <button 
+                                <div className="autocomplete-dropdown">
+                                  <div className="autocomplete-dropdown-header">
+                                    <span className="autocomplete-dropdown-title">Select Product</span>
+                                    <button
                                       type="button"
-                                      onClick={() => setActiveProductSearchRow(null)} 
-                                      className="text-[9px] text-indigo-500 hover:underline font-bold"
+                                      onClick={() => setActiveProductSearchRow(null)}
+                                      className="autocomplete-dropdown-close"
                                     >
-                                      Close
+                                      Close ✕
                                     </button>
                                   </div>
                                   {getFilteredProducts(item.description).map(prod => (
@@ -1495,13 +1523,15 @@ export default function App() {
                                       type="button"
                                       key={prod.name}
                                       onClick={() => selectProduct(idx, prod)}
-                                      className="w-full text-left px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                                      className="autocomplete-item"
                                     >
-                                      {prod.name} - ₹{prod.rate} ({prod.unit})
+                                      <span className="item-rate">₹{prod.rate}</span>
+                                      {prod.name}
+                                      <div className="item-sub">{prod.unit} · HSN {prod.hsn || '—'}</div>
                                     </button>
                                   ))}
                                   {getFilteredProducts(item.description).length === 0 && (
-                                    <div className="text-center py-2 text-xs text-slate-400 font-medium">New product. Enter manually.</div>
+                                    <div className="autocomplete-empty">New product. Enter manually.</div>
                                   )}
                                 </div>
                               )}
@@ -1719,6 +1749,30 @@ export default function App() {
                           Tax Invoice
                         </button>
                       </div>
+
+                      {/* 2-up toggle: only for Bill template */}
+                      {currentTemplate === 'bill' && (
+                        <button
+                          onClick={() => {
+                            if (twoUp) {
+                              const confirmed = window.confirm('Switch to single-copy print?\nOnly ONE bill will be printed per page.');
+                              if (confirmed) setTwoUp(false);
+                            } else {
+                              setTwoUp(true);
+                            }
+                          }}
+                          title={twoUp ? 'Currently 2-up landscape — click to switch to 1-up' : 'Currently 1-up — click to switch to 2-up landscape'}
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                            twoUp
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-700'
+                              : 'bg-slate-100 text-slate-500 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                          }`}
+                        >
+                          {twoUp ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                          {twoUp ? '2-up Landscape' : '1-up Portrait'}
+                        </button>
+                      )}
+
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-slate-400">Size:</span>
                         <select
@@ -1749,11 +1803,14 @@ export default function App() {
                   </div>
 
 
-
                   {/* Render exact paper template matching Excel format */}
-                  <div className="bill-paper-container" ref={printRef}>
+                  {/* Bill template: renders 1 or 2 copies (2-up landscape) */}
+                  <div className={`bill-paper-container${currentTemplate === 'bill' && twoUp ? ' two-up' : ''}`} ref={printRef}>
                     {currentTemplate === 'bill' ? (
-                      <div className={`bill-paper print-size-${printSize}`}>
+                      /* When 2-up: render two identical copies side by side */
+                      <>
+                        {[0, ...(twoUp ? [1] : [])].map((copyIdx) => (
+                          <div key={copyIdx} className={`bill-paper print-size-${printSize}${twoUp ? ' two-up-copy' : ''}`}>
                         <div className="bill-border-box">
                           
                           {/* Company Header Block */}
@@ -1913,13 +1970,15 @@ export default function App() {
                           {/* Signatory Box */}
                           <div className="bill-footer">
                             <div className="bill-signature-block">
-                              <div className="bill-signature-line">Authorized Signatory</div>
+                        <div className="bill-signature-line">Authorized Signatory</div>
                             </div>
                           </div>
 
                         </div>
                       </div>
-                    ) : (
+                    ))}
+                  </>
+                ) : (
                       <div className={`bill-paper tally-tax-invoice print-size-${printSize} tally-border p-0 bg-white`}>
                         {/* 1. Header Box */}
                         <div className="flex justify-between items-center p-2 tally-border-b tally-bg-grey text-black">
