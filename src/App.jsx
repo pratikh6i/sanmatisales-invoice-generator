@@ -419,10 +419,11 @@ export default function App() {
       ...prev,
       items: [
         ...prev.items,
-        { sNo: prev.items.length + 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 18 }
+        { sNo: prev.items.length + 1, description: '', hsn: '', qty: 1, unit: 'Pcs', rate: 0, gstRate: 0 }
       ]
     }));
   };
+
 
   const removeItemRow = (index) => {
     if (invoiceForm.items.length === 1) return;
@@ -619,8 +620,9 @@ export default function App() {
         qty: parseFloat(item.qty),
         unit: item.unit || 'Pcs',
         rate: parseFloat(item.rate),
-        gstRate: parseFloat(item.gstRate) || 18
+        gstRate: (item.gstRate !== undefined && item.gstRate !== null && !isNaN(parseFloat(item.gstRate))) ? parseFloat(item.gstRate) : 0
       })),
+
       discount: invoice.discount || 0,
       terms: invoice.terms || [
         'Goods once sold will not be taken back.',
