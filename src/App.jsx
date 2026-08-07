@@ -399,6 +399,9 @@ export default function App() {
   };
 
   const calculatedInvoice = calculateInvoiceMetrics(invoiceForm);
+  const itemCount = calculatedInvoice.items.length;
+  const densityClass = itemCount > 15 ? 'density-ultra-compact' : itemCount > 9 ? 'density-compact' : itemCount > 6 ? 'density-tight' : '';
+
 
   // Form Handlers
   const handleFormChange = (field, val) => {
@@ -1831,8 +1834,8 @@ export default function App() {
                       /* When 2-up: render two identical copies side by side */
                       <>
                         {[0, ...(twoUp ? [1] : [])].map((copyIdx) => (
-                          <div key={copyIdx} className={`bill-paper print-size-${printSize}${twoUp ? ' two-up-copy' : ''}`}>
-                        <div className="bill-border-box">
+                          <div key={copyIdx} className={`bill-paper print-size-${printSize}${twoUp ? ' two-up-copy' : ''} ${densityClass}`}>
+                            <div className="bill-border-box">
                           
                           {/* Company Header Block */}
                           <div className="bill-header-logo-section" style={{ alignItems: 'center' }}>
@@ -2000,7 +2003,7 @@ export default function App() {
                     ))}
                   </>
                 ) : (
-                      <div className={`bill-paper tally-tax-invoice print-size-${printSize} tally-border p-0 bg-white`}>
+                      <div className={`bill-paper tally-tax-invoice print-size-${printSize} tally-border p-0 bg-white ${densityClass}`}>
                         {/* 1. Header Box */}
                         <div className="flex justify-between items-center p-2 tally-border-b tally-bg-grey text-black">
                           <span className="text-[9px] font-bold">Debit Memo</span>
@@ -2220,9 +2223,9 @@ export default function App() {
                     )}
                   </div>
                 </div>
-
               </div>
             )}
+
 
             {activeTab === 'invoices' && (
               /* Invoices History list */

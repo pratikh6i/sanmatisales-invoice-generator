@@ -1308,3 +1308,183 @@ nav button:hover {
   color: #94a3b8;
 }
 
+/* ==========================================================================
+   2-UP LANDSCAPE & HIGH-ITEM DENSITY SCALING RULES
+   ========================================================================== */
+
+/* 2-up Copy default proportional scaling for half-A4 landscape */
+.bill-paper-container.two-up .two-up-copy {
+  width: 50% !important;
+  max-width: 50% !important;
+  flex: 0 0 50% !important;
+  box-sizing: border-box !important;
+  padding: 4mm !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+
+.two-up-copy .bill-border-box {
+  padding: 8px 10px !important;
+}
+
+.two-up-copy .bill-header-logo-section {
+  margin-bottom: 4px !important;
+}
+
+.two-up-copy .bill-header-logo-section img {
+  width: 38px !important;
+  height: 38px !important;
+  margin-top: -4px !important;
+  margin-bottom: 0px !important;
+}
+
+.two-up-copy .bill-company-title {
+  font-size: 20px !important;
+  padding: 2px 14px !important;
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+  letter-spacing: 1px !important;
+}
+
+.two-up-copy .bill-meta-grid {
+  font-size: 11px !important;
+  padding: 3px 0 !important;
+  margin-bottom: 6px !important;
+  gap: 2px !important;
+}
+
+.two-up-copy .bill-meta-col {
+  gap: 2px !important;
+}
+
+.two-up-copy .bill-items-table {
+  margin-bottom: 6px !important;
+}
+
+.two-up-copy .bill-items-table th {
+  font-size: 11px !important;
+  padding: 3px 2px !important;
+}
+
+.two-up-copy .bill-items-table td {
+  font-size: 10px !important;
+  padding: 2.5px 2px !important;
+}
+
+.two-up-copy .bill-totals-section {
+  margin-top: 4px !important;
+  padding-top: 4px !important;
+}
+
+.two-up-copy .bill-terms-box {
+  font-size: 9.5px !important;
+  line-height: 1.2 !important;
+}
+
+.two-up-copy .bill-totals-table {
+  font-size: 10.5px !important;
+}
+
+.two-up-copy .bill-totals-table td {
+  padding: 1px 0 !important;
+}
+
+.two-up-copy .bill-totals-table tr.grand-total td {
+  font-size: 12px !important;
+  padding: 2px 0 !important;
+}
+
+.two-up-copy .bill-footer {
+  margin-top: 10px !important;
+}
+
+.two-up-copy .bill-signature-line {
+  margin-top: 15px !important;
+  font-size: 10px !important;
+  padding-top: 2px !important;
+}
+
+/* DENSITY CLASSES FOR HIGH ITEM COUNTS */
+
+/* 7 to 9 items */
+.density-tight .bill-items-table td {
+  font-size: 10px !important;
+  padding: 2px 2px !important;
+}
+.density-tight .bill-items-table th {
+  font-size: 10.5px !important;
+  padding: 3px 2px !important;
+}
+
+/* 10 to 15 items */
+.density-compact .bill-items-table td {
+  font-size: 9px !important;
+  padding: 1px 2px !important;
+  line-height: 1.15 !important;
+}
+.density-compact .bill-items-table th {
+  font-size: 9.5px !important;
+  padding: 2px 2px !important;
+}
+.two-up-copy.density-compact .bill-company-title {
+  font-size: 18px !important;
+  padding: 1px 10px !important;
+}
+.two-up-copy.density-compact .bill-meta-grid {
+  font-size: 10px !important;
+  padding: 2px 0 !important;
+  margin-bottom: 4px !important;
+}
+.two-up-copy.density-compact .bill-totals-section {
+  margin-top: 2px !important;
+  padding-top: 2px !important;
+}
+.two-up-copy.density-compact .bill-footer {
+  margin-top: 6px !important;
+}
+.two-up-copy.density-compact .bill-signature-line {
+  margin-top: 10px !important;
+}
+
+/* 16+ items */
+.density-ultra-compact .bill-items-table td {
+  font-size: 8px !important;
+  padding: 0.5px 1px !important;
+  line-height: 1.1 !important;
+}
+.density-ultra-compact .bill-items-table th {
+  font-size: 8.5px !important;
+  padding: 1px 1px !important;
+}
+.two-up-copy.density-ultra-compact .bill-company-title {
+  font-size: 16px !important;
+  padding: 1px 8px !important;
+  margin-bottom: 2px !important;
+}
+.two-up-copy.density-ultra-compact .bill-meta-grid {
+  font-size: 9px !important;
+  padding: 1px 0 !important;
+  margin-bottom: 2px !important;
+}
+.two-up-copy.density-ultra-compact .bill-terms-box {
+  font-size: 8px !important;
+  line-height: 1.1 !important;
+}
+.two-up-copy.density-ultra-compact .bill-totals-table {
+  font-size: 9px !important;
+}
+.two-up-copy.density-ultra-compact .bill-totals-table td {
+  padding: 0px 0 !important;
+}
+.two-up-copy.density-ultra-compact .bill-totals-table tr.grand-total td {
+  font-size: 10px !important;
+  padding: 1px 0 !important;
+}
+.two-up-copy.density-ultra-compact .bill-footer {
+  margin-top: 4px !important;
+}
+.two-up-copy.density-ultra-compact .bill-signature-line {
+  margin-top: 8px !important;
+  font-size: 8.5px !important;
+}
+
