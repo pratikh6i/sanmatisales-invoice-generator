@@ -742,17 +742,23 @@ nav button:hover {
     display: flex !important;
     flex-direction: row !important;
     align-items: stretch !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
   }
 
   .bill-paper-container.two-up .two-up-copy {
     width: 50% !important;
     max-width: 50% !important;
-    flex: 0 0 50% !important;
+    flex: 1 1 50% !important;
     box-sizing: border-box !important;
-    padding: 5mm !important;
+    padding: 3mm !important;
     margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
     overflow: hidden !important;
   }
+
 
   /* Dashed cut-line between the two copies */
   .bill-paper-container.two-up .two-up-copy:first-child {
@@ -1316,16 +1322,26 @@ nav button:hover {
 .bill-paper-container.two-up .two-up-copy {
   width: 50% !important;
   max-width: 50% !important;
-  flex: 0 0 50% !important;
+  flex: 1 1 50% !important;
   box-sizing: border-box !important;
-  padding: 4mm !important;
+  padding: 3mm !important;
   margin: 0 !important;
   overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
 }
 
 .two-up-copy .bill-border-box {
+  flex: 1 1 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
   padding: 8px 10px !important;
 }
+
 
 .two-up-copy .bill-header-logo-section {
   margin-bottom: 4px !important;
