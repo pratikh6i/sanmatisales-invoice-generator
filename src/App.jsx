@@ -981,18 +981,39 @@ export default function App() {
 
   const triggerPrint = (template = 'bill') => {
     setCurrentTemplate(template);
-    // Apply or remove 2-up class on the container before printing
+
     const container = document.querySelector('.bill-paper-container');
+    const is2Up = template === 'bill' && twoUp;
+
+    // Add/remove 2-up class on the container
     if (container) {
-      if (template === 'bill' && twoUp) {
-        container.classList.add('two-up');
-      } else {
-        container.classList.remove('two-up');
-      }
+      if (is2Up) container.classList.add('two-up');
+      else container.classList.remove('two-up');
     }
-    setTimeout(() => {
-      window.print();
-    }, 150);
+
+    // Dynamically inject landscape @page only for 2-up —
+    // never bake it into the CSS so 1-up portrait is untouched
+    const STYLE_ID = '__print_page_size__';
+    let injected = document.getElementById(STYLE_ID);
+    if (injected) injected.remove();
+
+    if (is2Up) {
+      injected = document.createElement('style');
+      injected.id = STYLE_ID;
+      injected.textContent = '@page { size: A4 landscape; margin: 0; }';
+      document.head.appendChild(injected);
+    }
+
+    // Clean up landscape override after the print dialog closes
+    const cleanup = () => {
+      const el = document.getElementById(STYLE_ID);
+      if (el) el.remove();
+      if (container) container.classList.remove('two-up');
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+
+    setTimeout(() => window.print(), 200);
   };
 
   const handleSaveAndPrint = async (template = 'bill') => {
@@ -1150,7 +1171,7 @@ export default function App() {
               {/* + New Invoice button — always visible in header */}
               <button
                 onClick={handleNewInvoice}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-indigo-500/20 transition-all"
+                className="btn-new-invoice"
                 title="Clear form and start a new invoice"
               >
                 <FilePlus className="w-4 h-4" />

@@ -671,105 +671,102 @@ nav button:hover {
 }
 
 /* PRINT MEDIA OVERRIDES - CRITICAL */
+/* Default @page — portrait, zero margin */
 @page {
+  size: A4 portrait;
   margin: 0;
 }
 
 @media print {
-  /* Force browsers to print backgrounds and background colors */
+  /* Force browsers to print backgrounds */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     color-adjust: exact !important;
   }
 
-  /* Collapse all body content so nothing below the invoice generates a blank page */
+  /* Collapse html/body to exactly the viewport — prevents any extra blank pages */
   html, body {
-    height: auto !important;
+    width: 100vw !important;
+    height: 100vh !important;
     overflow: hidden !important;
-    background-color: white !important;
-    color: black !important;
-    font-size: 12pt;
+    background: white !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  /* Hide all dashboard/edit chrome and UI elements */
+  /* Hide all app chrome — visibility:hidden keeps layout but hides content */
   body * {
     visibility: hidden;
   }
 
-  /* Make only the bill paper container visible */
+  /* Show only the bill paper container and everything inside it */
   .bill-paper-container,
   .bill-paper-container * {
     visibility: visible;
   }
 
-  /* Position the print container at top-left; fixed height prevents blank page overflow */
+  /* Pin the container to the full viewport — position:fixed takes it out of
+     document flow so the body height never triggers an extra page */
   .bill-paper-container {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 100% !important;
-    max-width: 100% !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
     border: none !important;
     box-shadow: none !important;
     overflow: hidden !important;
     display: block !important;
+    background: white !important;
   }
 
   .bill-paper {
-    padding: 0 !important;
+    padding: 6mm !important;
     margin: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
   }
 
-  /* Ensure page breaks don't cut rows */
+  /* Ensure table rows don't get cut across pages */
   .bill-items-table tr {
     page-break-inside: avoid;
   }
 
-  /* ---- 2-up LANDSCAPE BILL PRINT ---- */
-  /* When printing 2-up, force landscape page size */
+  /* ---- 2-up layout (landscape @page is injected by JS, not CSS) ---- */
   .bill-paper-container.two-up {
     display: flex !important;
     flex-direction: row !important;
-    align-items: flex-start !important;
-    width: 100% !important;
-    height: 100% !important;
-    overflow: hidden !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
+    align-items: stretch !important;
   }
 
-  @page {
-    size: A4 landscape;
-    margin: 0;
-  }
-
-  /* Each copy fills exactly half the landscape width */
   .bill-paper-container.two-up .two-up-copy {
     width: 50% !important;
     max-width: 50% !important;
     flex: 0 0 50% !important;
     box-sizing: border-box !important;
-    padding: 4mm !important;
+    padding: 5mm !important;
     margin: 0 !important;
-    font-size: 9pt !important;
+    overflow: hidden !important;
   }
 
   /* Dashed cut-line between the two copies */
   .bill-paper-container.two-up .two-up-copy:first-child {
-    border-right: 2px dashed #999 !important;
+    border-right: 2px dashed #aaa !important;
   }
 
-  /* In 2-up mode keep page portrait for 1-up tax invoice */
+  /* 1-up portrait stays as a simple block */
   .bill-paper-container:not(.two-up) {
     display: block !important;
+  }
+
+  /* Hide the no-print controls */
+  .no-print {
+    display: none !important;
   }
 }
 
@@ -1137,6 +1134,39 @@ nav button:hover {
   color: #ffffff !important;
   box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2), 0 2px 4px -1px rgba(79, 70, 229, 0.1) !important;
 }
+
+/* + New Invoice header button — always bright, unmissable */
+.btn-new-invoice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
+  color: #ffffff !important;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.45);
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn-new-invoice:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #1d4ed8 100%);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.55);
+  transform: translateY(-1px);
+}
+.btn-new-invoice:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
+}
+.btn-new-invoice svg {
+  color: #ffffff;
+}
+
 
 /* ==========================================================================
    AUTOCOMPLETE DROPDOWN POLISH
